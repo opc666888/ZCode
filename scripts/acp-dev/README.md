@@ -36,6 +36,26 @@ Dock 里显示的是原版 Electron 图标，窗口标题/菜单名是 `ZCode AC
 
 首次启动会出现区域选择/登录页：**不要用自己的正式账号登录**。ACP 会话不需要登录 ZCode 账号。
 
+**在 Claude Code 等自动化会话里启动**（2026-11-19 W3d 实测）：默认的 `start`（经 `open`）在这类会话里会丢掉
+`--args`/`--env`，结果拉起的是 Electron 默认欢迎页（日志为空、60 秒超时，而且会抢前台）；`--direct` 又会因 Chromium
+沙箱初始化失败而 FATAL。可用的组合是：
+
+```bash
+ACP_DEV_AUTO_SELECT_DIR=<隔离根>/演示项目 \
+  bash scripts/acp-dev/run-desktop-isolated.sh start --direct --no-sandbox --remote-debugging-port=0
+```
+
+（Claude Code 的 Bash 工具还需关闭它自己的命令沙箱，否则 `open`/子进程同样起不来。）`--no-sandbox` 只用于本机加载
+本地页面 + 模拟智能体的开发验证，不要拿它跑真实账号。
+
+## 2b. 无焦点操作页面（cdp.mjs）
+
+开发版用 `--remote-debugging-port=0` 启动后，`node scripts/acp-dev/cdp.mjs <命令>` 经 DevTools 协议操作页面，
+不移动系统鼠标、不抢焦点（命令列表见文件头注释）：`text` 看可见文字、`click-text`/`click-sel` 点击、
+`hover-text` 悬停出按钮、`type` + `key Enter` 发消息、`shot <png>` 只截开发版页面。
+Radix 下拉菜单（项目选择、「⋯」菜单）只认 `pointerdown`，`click-text` 打不开时用 `eval` 派发 PointerEvent。
+GUI 实测步骤与截图见 [`docs/acp-bridge/GUI-WALKTHROUGH.md`](../../docs/acp-bridge/GUI-WALKTHROUGH.md)。
+
 ## 3. 无界面冒烟
 
 ```bash

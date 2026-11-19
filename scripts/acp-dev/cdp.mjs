@@ -7,7 +7,8 @@
 //   node scripts/acp-dev/cdp.mjs click-text '暂时跳过'    # 点击可见文本精确匹配的元素（按钮/链接/菜单项）
 //   node scripts/acp-dev/cdp.mjs text                    # 打印主窗口可见文本（前 3000 字）
 //   node scripts/acp-dev/cdp.mjs click-sel '<css>'       # 点击第一个可见的 CSS 选择器匹配元素
-//   node scripts/acp-dev/cdp.mjs type '<文本>'            # 往当前聚焦的输入框插入文本（CDP Input.insertText，不经系统键盘）
+//   node scripts/acp-dev/cdp.mjs hover-text '<文本>'      # 虚拟鼠标悬停到该文本元素（显示悬停按钮，不动系统鼠标）
+//   node scripts/acp-dev/cdp.mjs type '<文本>'          # 往当前聚焦的输入框插入文本（CDP Input.insertText，不经系统键盘）
 //   node scripts/acp-dev/cdp.mjs key Enter|Escape        # 向页面派发按键（CDP Input.dispatchKeyEvent，不经系统键盘）
 //   node scripts/acp-dev/cdp.mjs wait-text '<文本>' [秒]  # 等页面出现该文本（默认 30 秒）
 //   node scripts/acp-dev/cdp.mjs shot <输出.png>          # 用 CDP 截当前页面（只有开发版页面内容，不会截到其他窗口）
@@ -95,6 +96,20 @@ try {
         return "已点击 <" + el.tagName.toLowerCase() + "> " + (el.innerText || el.getAttribute("aria-label") || "").trim().slice(0, 60);
       })()`),
     );
+  } else if (cmd === "hover-text") {
+    // 把 CDP 虚拟鼠标移到包含该文本的最后一个可见元素中心（触发 :hover / 悬停按钮），不动系统鼠标。
+    const box = await evaluate(`(() => {
+      const want = ${JSON.stringify(arg)};
+      const hits = [...document.querySelectorAll('body *')].filter((el) => el.childElementCount === 0 && el.innerText?.trim() === want && el.offsetParent !== null);
+      const el = hits[hits.length - 1];
+      if (!el) return null;
+      el.scrollIntoView({ block: "center" });
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    if (!box) throw new Error(`未找到：${arg}`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+    console.log("已悬停", arg, JSON.stringify(box));
   } else if (cmd === "type") {
     await send("Input.insertText", { text: arg ?? "" });
     console.log("已输入", JSON.stringify(arg));
@@ -128,7 +143,7 @@ try {
     writeFileSync(resolve(arg), Buffer.from(res.result.data, "base64"));
     console.log(resolve(arg));
   } else {
-    console.error("用法：targets | eval <expr> | text | click-text <文本> | click-sel <css> | type <文本> | key <键> | wait-text <文本> [秒] | shot <png>");
+    console.error("用法：targets | eval <expr> | text | click-text <文本> | click-sel <css> | hover-text <文本> | type <文本> | key <键> | wait-text <文本> [秒] | shot <png>");
     process.exitCode = 2;
   }
 } finally {
