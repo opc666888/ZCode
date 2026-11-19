@@ -42,6 +42,11 @@ export interface ProviderRegistryServiceDependencies {
   readonly configSource: ProviderSource<ProviderConfigSnapshot>;
   readonly accountSource: ProviderSource<AccountProviderConfigSnapshot>;
   readonly resolver?: ProviderConfigResolver;
+  /**
+   * acp-bridge: 进程内合成、只进 Registry 的 Provider（如 `acp:<id>`）。
+   * 它们不来自 Config/Account，不进入 Settings 视图与 resolution；同 id 以 Config 解析结果为准。
+   */
+  readonly extraRegistryProviders?: readonly Provider[];
 }
 
 interface RefreshWaiter {
@@ -54,6 +59,7 @@ export class ProviderRegistryService {
   readonly #configSource: ProviderSource<ProviderConfigSnapshot>;
   readonly #accountSource: ProviderSource<AccountProviderConfigSnapshot>;
   readonly #resolver: ProviderConfigResolver;
+  readonly #extraRegistryProviders: readonly Provider[];
   readonly #registry = new ProviderRegistry();
   readonly #changeListeners = new Set<(event: ProviderRegistryServiceChangedEvent) => void>();
   readonly #errorListeners = new Set<(event: ProviderRegistryServiceRefreshErrorEvent) => void>();
@@ -71,6 +77,7 @@ export class ProviderRegistryService {
     this.#configSource = dependencies.configSource;
     this.#accountSource = dependencies.accountSource;
     this.#resolver = dependencies.resolver ?? new ProviderConfigResolver();
+    this.#extraRegistryProviders = dependencies.extraRegistryProviders ?? [];
   }
 
   async start(): Promise<void> {
@@ -229,7 +236,10 @@ export class ProviderRegistryService {
           accountStates: account.states,
           personalProviderOrder: config.personalProviderOrder,
         });
-        this.#registry.replace(resolution.registryProviders, [...reasons].join(","));
+        this.#registry.replace(
+          this.#withExtraRegistryProviders(resolution.registryProviders),
+          [...reasons].join(","),
+        );
         const snapshot = Object.freeze({
           sourceRevisions: Object.freeze({
             config: config.revision,
@@ -252,6 +262,16 @@ export class ProviderRegistryService {
         return;
       }
     }
+  }
+
+  // acp-bridge: 无额外 Provider 时原样返回，行为与改动前完全一致。
+  #withExtraRegistryProviders(providers: readonly Provider[]): readonly Provider[] {
+    if (this.#extraRegistryProviders.length === 0) return providers;
+    const existing = new Set(providers.map((provider) => provider.providerId));
+    return [
+      ...providers,
+      ...this.#extraRegistryProviders.filter((provider) => !existing.has(provider.providerId)),
+    ];
   }
 
   #resolveRefreshWaiters(generation: number, snapshot: ProviderRegistryServiceSnapshot): void {
