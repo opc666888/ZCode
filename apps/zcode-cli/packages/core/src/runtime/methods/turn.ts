@@ -65,6 +65,8 @@ import type { PromptRuntimeCommand } from "../command-queue.js";
 import { enqueueCancellableRuntimeCommand } from "./runtime-command-submit.js";
 import { buildReferencedSessionContextReminderBody } from "../../session-context/references.js";
 import { runRegularTurnLoop } from "./turn-loop.js";
+// acp-bridge: 外部智能体回合（docs/acp-bridge/DESIGN.md §5）。
+import { resolveExternalTurnEngine, runExternalTurn } from "../external-turn/index.js";
 import { appendInterruptMarker } from "./interrupt-marker.js";
 import {
   maybeStartDeferredSessionTitleGeneration,
@@ -170,8 +172,10 @@ export async function executeTurnCommand(
       )
     : undefined;
   const admittedOutputStyle = this.config.outputStyle;
-  const compactInstructions = parseCompactCommand(input);
-  const rewindCommand = parseRewindCommand(input);
+  // acp-bridge: 选择被外部引擎接管时，/compact、/rewind 原样交给外部智能体，不走 ZCode 本地实现。
+  const externalTurnEngine = resolveExternalTurnEngine(this, admittedModelSelection);
+  const compactInstructions = externalTurnEngine ? null : parseCompactCommand(input);
+  const rewindCommand = externalTurnEngine ? null : parseRewindCommand(input);
   const turnId = startReservation?.turnId ?? createTurnId();
   const queryId = options?.queryId ?? (options?.inputId as QueryId | undefined) ?? createQueryId();
   const displayInput = options?.displayInput ?? input;
@@ -408,7 +412,8 @@ export async function executeTurnCommand(
       let phaseStartedAt: number;
       // Bug 根因：创建错误确定后仍执行 Context/SessionStart，会在 TurnStarted 前被二次 I/O 错误覆盖，
       // 并提前消费一次性 SessionStart。失败轮跳过它们，只复用后续输入持久化与终态主链。
-      if (!creationFailure) {
+      // acp-bridge: 外部智能体自带上下文与 hooks，跳过 ZCode Context/MCP 初始化与 SessionStart。
+      if (!creationFailure && !externalTurnEngine) {
         phaseStartedAt = startTurnPhase("context_initialization");
         if (this.contextInitialized) {
           // 每个后续 model step 都按该步骤实际持有的 Model 重新投影 Context；
@@ -466,7 +471,8 @@ export async function executeTurnCommand(
         turnId,
         turnTraceContext,
         "regular",
-        creationFailure === undefined,
+        // acp-bridge: 外部回合不消费 guide，运行中新输入改走队列。
+        creationFailure === undefined && !externalTurnEngine,
         {
           ...(options?.inputId === undefined ? {} : { inputId: options.inputId }),
         },
@@ -575,7 +581,8 @@ export async function executeTurnCommand(
 
       try {
         phaseStartedAt = startTurnPhase("user_prompt_hooks");
-        const userPromptHookResult: HookRunResult = options?.skipUserPromptSubmitHooks
+        const userPromptHookResult: HookRunResult =
+          options?.skipUserPromptSubmitHooks || externalTurnEngine // acp-bridge
           ? { additionalContexts: [] }
           : await this.runUserPromptSubmitHooks(
               input,
@@ -799,7 +806,11 @@ export async function executeTurnCommand(
           traceContext: turnTraceContext,
         });
         throwIfTurnAborted(turnAbortSignal);
-        if (options?.skipInputRecord !== true && options?.inputVisibility !== "model-only") {
+        if (
+          !externalTurnEngine && // acp-bridge: 标题生成会请求会话模型，外部智能体会话不发起。
+          options?.skipInputRecord !== true &&
+          options?.inputVisibility !== "model-only"
+        ) {
           // 修复原因：标题生成以前等主 turn 成功后才启动，用户 stop/cancel 首轮请求时
           // generated title 永远没有机会发起。首条 query 持久化后即可异步生成，避免被主链路取消拖死。
           const titleGenerationStarted = maybeStartSessionTitleGeneration.call(
@@ -819,7 +830,7 @@ export async function executeTurnCommand(
         // 根因：input 可能已经被自定义命令展开，解析它会让命令模板里的 plugin://
         // 凭空获得“用户引用”语义；这里只解析真实持久化的 canonical displayInput。
         // runtime 内部的 model-only continuation 不代表新的用户意图，不重复解析。
-        if (options?.inputVisibility !== "model-only") {
+        if (!externalTurnEngine && options?.inputVisibility !== "model-only") {
           await this.injectPluginReferenceReminderFromTurn(
             displayInput,
             turnTraceContext,
@@ -828,6 +839,24 @@ export async function executeTurnCommand(
         }
 
         this.messageHistory.setCacheMiss();
+        if (externalTurnEngine && effectiveExecutionSelection) {
+          // acp-bridge: 用外部引擎替代 runRegularTurnLoop；取消/失败抛出后由下方 catch 统一收尾。
+          return await runExternalTurn(this, externalTurnEngine, {
+            input,
+            attachments: resolvedAttachments,
+            selection: effectiveExecutionSelection,
+            events,
+            turnId,
+            traceId,
+            traceContext: turnTraceContext,
+            signal: turnAbortSignal,
+            userMessageId,
+            ...(options?.inputId === undefined ? {} : { inputId: options.inputId }),
+            turnStartedAtMs,
+            startedTarget,
+            targetRunInputID,
+          });
+        }
         const loopModel = submissionModel ?? admittedModel;
         if (!loopModel) {
           throw new Error("Turn model was not created before execution");

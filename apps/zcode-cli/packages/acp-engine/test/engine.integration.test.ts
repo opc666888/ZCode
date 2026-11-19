@@ -252,7 +252,7 @@ describe("AcpEngine × fake agent", () => {
     expect(result).toMatchObject({ stopReason: "end_turn", text: "已修改", toolCallCount: 1 });
     expect(host.permissions).toEqual([
       {
-        toolCallId: "t-edit",
+        toolCallId: "t-edit-perm",
         toolName: "Edit",
         title: "Edit edit-target.txt",
         input: { file_path: join(cwd, "edit-target.txt"), content: "edited\n" },
@@ -264,11 +264,11 @@ describe("AcpEngine × fake agent", () => {
       },
     ]);
     // 弹权限前，对应的 tool_start 已经交给宿主。
-    expect(host.events[0]).toMatchObject({ kind: "tool_start", toolCallId: "t-edit" });
+    expect(host.events[0]).toMatchObject({ kind: "tool_start", toolCallId: "t-edit-perm" });
     expect(await readFile(join(cwd, "edit-target.txt"), "utf8")).toBe("edited\n");
     expect(host.events).toContainEqual({
       kind: "tool_update",
-      toolCallId: "t-edit",
+      toolCallId: "t-edit-perm",
       status: "completed",
       diffs: [{ path: join(cwd, "edit-target.txt"), oldText: null, newText: "edited\n" }],
     });
@@ -285,7 +285,7 @@ describe("AcpEngine × fake agent", () => {
     expect(result).toMatchObject({ stopReason: "end_turn", text: "已拒绝" });
     expect(host.events).toContainEqual({
       kind: "tool_update",
-      toolCallId: "t-edit",
+      toolCallId: "t-edit-perm",
       status: "failed",
       text: "User refused",
     });

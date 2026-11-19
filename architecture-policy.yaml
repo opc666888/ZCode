@@ -1840,6 +1840,60 @@ modules:
       - apps/zcode-cli/packages/acp-engine/src/contract.ts
     layers:
       adapters: .
+  # cli-external-turn：由 architecture:adopt 登记
+  - id: cli-external-turn
+    roots:
+      - apps/zcode-cli/packages/core/src/runtime/external-turn
+    managed: true
+    requires:
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/core/src/runtime/external-turn/index.ts
+      - apps/zcode-cli/packages/core/src/runtime/external-turn/contract.ts
+    layers:
+      app: .
+    owner: agent
+  # cli-acp-bridge：由 architecture:adopt 登记
+  - id: cli-acp-bridge
+    roots:
+      - apps/zcode-cli/packages/bootstrap/src/acp-bridge
+    managed: true
+    requires:
+      - acp-engine
+      - provider
+      - shared
+      - zcode-cli
+    publicEntrypoints:
+      - apps/zcode-cli/packages/bootstrap/src/acp-bridge/index.ts
+      - apps/zcode-cli/packages/bootstrap/src/acp-bridge/contract.ts
+    layers:
+      adapters: .
+    owner: agent
+  # privacy-mode：由 architecture:adopt 登记
+  - id: privacy-mode
+    roots:
+      - packages/shared/src/privacy-mode
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/shared/src/privacy-mode/index.ts
+      - packages/shared/src/privacy-mode/contract.ts
+    layers:
+      domain: .
+    owner: shared
+  # provider-acp-bridge：由 architecture:adopt 登记
+  - id: provider-acp-bridge
+    roots:
+      - packages/provider/src/acp-bridge
+    managed: true
+    requires:
+      - provider
+    publicEntrypoints:
+      - packages/provider/src/acp-bridge/index.ts
+      - packages/provider/src/acp-bridge/contract.ts
+    layers:
+      domain: .
+    owner: provider
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

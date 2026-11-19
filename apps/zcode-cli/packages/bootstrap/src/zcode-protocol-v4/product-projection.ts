@@ -164,6 +164,8 @@ import {
   mapTurnResultToHeaderState,
   userInputSubmittedConfig,
 } from "./projection-rows.js";
+// acp-bridge: ACP 会话能力门控（docs/acp-bridge/DESIGN.md §5.1-5）。
+import { isAcpProviderId, restrictAcpSessionAvailability } from "../acp-bridge/index.js";
 import {
   HYDRATION_TRACE_ID,
   availabilityContextOf,
@@ -1613,6 +1615,8 @@ export class ProductProjection {
   private materializeCommandRowActions(reduced: ConversationDelta[]): ConversationDelta[] {
     const prospective = applyConversationDeltas(this.snapshot, reduced);
     const rows = prospective.rows.window;
+    // acp-bridge: 外部 ACP 智能体会话没有 fork/编辑/重试/文件回退，行 actions 一律关闭。
+    const externalAgentSession = isAcpProviderId(prospective.config.provider);
     const availabilityContext = availabilityContextOf(prospective);
     const compactActive = availabilityContext.compacting;
     const completionBlockingActive = availabilityContext.activeWorkCount > 0;
@@ -1713,17 +1717,18 @@ export class ProductProjection {
         nextActions = nextRowActions(
           row.actions,
           TURN_HEADER_ACTION_GROUPS,
-          row.state !== "running" && row.fileChanges?.state === "active",
+          !externalAgentSession && row.state !== "running" && row.fileChanges?.state === "active",
         );
       } else if (row.kind === "userInput") {
         nextActions = nextRowActions(
           row.actions,
           USER_INPUT_ACTION_GROUPS,
-          row.rowId === latestEditableRowId,
+          !externalAgentSession && row.rowId === latestEditableRowId,
         );
       } else if (row.kind === "assistantText") {
         const header = headerOfTurn(row.turnId);
         const canFork =
+          !externalAgentSession &&
           row.state === "complete" &&
           header?.state === "completedSuccess" &&
           latestAssistantRowIdByTurn.get(row.turnId) === row.rowId &&
@@ -1731,7 +1736,7 @@ export class ProductProjection {
         nextActions = nextRowActions(
           row.actions,
           ASSISTANT_TEXT_ACTION_GROUPS,
-          row.rowId === latestRetryableRowId,
+          !externalAgentSession && row.rowId === latestRetryableRowId,
           canFork,
         );
       } else {
@@ -1742,7 +1747,9 @@ export class ProductProjection {
       if (!nextActions) delete nextRow.actions;
       deltas.push({ op: "row.upserted", row: nextRow });
     }
-    const availability = computeAvailability(availabilityContext);
+    const availability = externalAgentSession
+      ? restrictAcpSessionAvailability(computeAvailability(availabilityContext))
+      : computeAvailability(availabilityContext);
     if (JSON.stringify(availability) !== JSON.stringify(prospective.availability)) {
       deltas.push({ op: "state.updated", patch: { availability } });
     }

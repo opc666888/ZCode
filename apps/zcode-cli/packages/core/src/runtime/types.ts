@@ -3,6 +3,8 @@ import type { SessionControlBinding } from "../tool/session-control/contract.js"
 import type { ExecutionState, RequestVerificationReason } from "@zcode/shared";
 import type { GetAgentDefinitions, LoadAgentDefinitions } from "../subagent/definitions.js";
 import type { RuntimeInputPresentation, TurnExecutionModelFallbackReason } from "@zcode/contracts";
+// acp-bridge: 外部回合引擎挂点契约（docs/acp-bridge/DESIGN.md §5）。
+import type { ExternalTurnEngineAdapter } from "./external-turn/contract.js";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
 import { PermissionService, ToolScheduler } from "./deps.js";
 import type {
@@ -374,6 +376,8 @@ export interface AgentRuntimeDeps {
   providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   permissionService?: PermissionService;
   permissionBroker?: PermissionBrokerPort;
+  /** acp-bridge: 本轮选择被它接管时（如 `acp:<id>`），回合由外部智能体执行，替代 runRegularTurnLoop。 */
+  externalTurnEngine?: ExternalTurnEngineAdapter;
   toolScheduler?: ToolScheduler;
   toolRegistry?: ToolRegistry;
   toolExecutor?: ToolExecutor;

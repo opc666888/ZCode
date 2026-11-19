@@ -212,7 +212,7 @@ app.onRequest("session/prompt", async ({ params, client }) => {
     const file = join(cwd, "edit-target.txt");
     await send({
       sessionUpdate: "tool_call",
-      toolCallId: "t-edit",
+      toolCallId: "t-edit-perm",
       title: "Edit edit-target.txt",
       kind: "edit",
       status: "pending",
@@ -223,7 +223,7 @@ app.onRequest("session/prompt", async ({ params, client }) => {
     const response = await client.request("session/request_permission", {
       sessionId,
       toolCall: {
-        toolCallId: "t-edit",
+        toolCallId: "t-edit-perm",
         title: "Edit edit-target.txt",
         rawInput: { file_path: file, content: "edited\n" },
       },
@@ -241,7 +241,7 @@ app.onRequest("session/prompt", async ({ params, client }) => {
     if (response.outcome.optionId === "reject") {
       await send({
         sessionUpdate: "tool_call_update",
-        toolCallId: "t-edit",
+        toolCallId: "t-edit-perm",
         status: "failed",
         rawOutput: "User refused",
       });
@@ -254,7 +254,7 @@ app.onRequest("session/prompt", async ({ params, client }) => {
     await client.request("fs/write_text_file", { sessionId, path: file, content: "edited\n" });
     await send({
       sessionUpdate: "tool_call_update",
-      toolCallId: "t-edit",
+      toolCallId: "t-edit-perm",
       status: "completed",
       content: [{ type: "diff", path: file, oldText: null, newText: "edited\n" }],
     });

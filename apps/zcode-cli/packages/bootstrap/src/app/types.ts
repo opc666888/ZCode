@@ -178,6 +178,8 @@ export interface ZCodeAppOptions {
   modelAdapter?: AiSdkModelAdapter;
   /** Worker 进程拥有的 Registry；App 只借用，不负责释放。 */
   providerRegistry: ProviderRegistryModelSource;
+  /** acp-bridge: 显式注入（测试/嵌入宿主）；null 关闭；缺省读 `<数据目录>/.zcode/acp-agents.json`。 */
+  acpBridge?: import("../acp-bridge/index.js").AcpBridge | null;
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
   /** 新 Session 使用的 Environment 默认选择；仅在没有显式 runtime modelSelection 时参与初始化。 */
   configuredDefaultModelSelection?: ModelSelection;

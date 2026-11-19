@@ -1,4 +1,6 @@
 import { configureOffPeakRuntime, controlOffPeakRuntime } from "./off-peak/runtime.js";
+// acp-bridge: 外部回合引擎按 runtime 登记，子 runtime 不继承。
+import { bindExternalTurnEngine } from "./external-turn/index.js";
 import {
   createTurnAgentDefinitions,
   createAgentDefinitionsReader,
@@ -345,6 +347,7 @@ export class AgentRuntime {
     this.now = deps.now ?? (() => new Date());
     this.isRemoteWorkspace = deps.isRemoteWorkspace ?? (() => false);
     this.modelFactory = deps.modelFactory;
+    bindExternalTurnEngine(this, deps.externalTurnEngine); // acp-bridge
     this.modelIoDir = deps.modelIoDir;
     this.providerRuntimeHeadersPort = deps.providerRuntimeHeadersPort;
     this.browserControlPort = deps.browserControlPort;
