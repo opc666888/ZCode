@@ -151,7 +151,9 @@ function withZCodeEndpointHeaders(
   endpointOrigin: string,
   clientLanguage: string | undefined,
 ): RequestInit["headers"] {
-  const next = new Headers(buildZCodeSourceHeaders({ clientLanguage }));
+  // acp-bridge(privacy): 仅当该请求自带 Authorization（已登录 z.ai）时才附带设备 ID。
+  const loggedIn = headers ? new Headers(headers).has("authorization") : false;
+  const next = new Headers(buildZCodeSourceHeaders({ clientLanguage, loggedIn }));
   if (headers) {
     new Headers(headers).forEach((value, key) => {
       next.set(key, value);

@@ -159,7 +159,10 @@ export function createOffPeakServerClient(deps: OffPeakServerClientDeps): OffPea
       // 这里只补标准非敏感来源头和链路 id，JWT/API Key 仍禁止进入日志。
       const headers = withRequestIdHeader({
         // 以前无参调用，X-Client-Language 回落到进程 Intl 系统语言，与界面语言不一致。
-        ...buildZCodeSourceHeaders({ clientLanguage: deps.resolveClientLanguage?.() }),
+        ...buildZCodeSourceHeaders({
+          clientLanguage: deps.resolveClientLanguage?.(),
+          loggedIn: true,
+        }),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
         authorization: `Bearer ${credentials.jwt}`,
         "x-coding-plan-api-key": credentials.codingPlanApiKey,

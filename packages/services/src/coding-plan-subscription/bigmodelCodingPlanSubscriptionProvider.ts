@@ -10,6 +10,7 @@ import {
   isRequestVerificationMessage,
   type RequestVerificationClientConfig,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 /* eslint-disable max-lines -- Coding Plan provider 需要集中维护 BigModel 支付宝与 Z.ai Stripe/PayPal 接口映射，拆分会让共享鉴权和响应解包更难追踪。 */
 import type {
   ApiClient,
@@ -839,6 +840,9 @@ export class BigModelCodingPlanSubscriptionProvider {
     const authorization = await resolveOptionalZCodeAuthorization(() =>
       this.credentialService.load(ZCODE_JWT_TOKEN_KEY),
     );
+    // acp-bridge(privacy): 未登录 z.ai 时不匿名拉 client/configs（动态工作流/上下文预算/Off-Peak 等
+    // 平台灰度在 Agent 运行时也会读取）；等价于服务端未下发任何配置，各项走本地默认。登录后照常拉取。
+    if (!authorization && isPrivacyMode()) return { code: 0, data: { configs: {} } };
     const url = resolveCodingPlanClientConfigUrl(process.env);
     url.searchParams.set("app_version", ZCODE_VERSION);
     url.searchParams.set("platform", resolveClientPlatformKey());

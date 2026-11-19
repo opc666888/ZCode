@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import {
   resolveDraftSuggestedPromptText,
   type DraftSuggestedPromptItem,
@@ -31,6 +32,11 @@ const PLUGIN_SUCCESS_ROLL_TRANSITION = {
   duration: 0.2,
   ease: [0.4, 0, 0.2, 1],
 } as const;
+
+// acp-bridge(privacy): 隐私模式不加载远程（cdn-zcode）插件图标，改用本地 Lucide 兜底图标；打包内的本地图片照常显示。
+function isRemoteIconBlockedByPrivacy(iconUrl: string | undefined): boolean {
+  return Boolean(iconUrl && /^https?:\/\//i.test(iconUrl) && isPrivacyMode());
+}
 
 function DraftSuggestedPromptIcon({ name }: { name?: string }) {
   return (
@@ -258,16 +264,20 @@ export function ConversationDraftSuggestedPrompts({
                     className="flex w-full items-center gap-3 rounded-xl p-3 text-left text-ui-base text-foreground hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:opacity-50"
                   >
                     <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface p-px">
-                      <img
-                        src={item.iconUrl}
-                        alt=""
-                        draggable={false}
-                        className={cn(
-                          "shrink-0 rounded-sm object-contain",
-                          // GitHub 素材自带白色方形底，再缩小一圈以露出与其他图标一致的外层留白。
-                          item.iconUrl?.includes("/github/icon.png") ? "size-4.5" : "size-full",
-                        )}
-                      />
+                      {isRemoteIconBlockedByPrivacy(item.iconUrl) ? (
+                        <DraftSuggestedPromptIcon name={item.iconName} />
+                      ) : (
+                        <img
+                          src={item.iconUrl}
+                          alt=""
+                          draggable={false}
+                          className={cn(
+                            "shrink-0 rounded-sm object-contain",
+                            // GitHub 素材自带白色方形底，再缩小一圈以露出与其他图标一致的外层留白。
+                            item.iconUrl?.includes("/github/icon.png") ? "size-4.5" : "size-full",
+                          )}
+                        />
+                      )}
                     </span>
                     <span className="min-w-0 flex-1 break-words">
                       {resolveDraftSuggestedPromptText(item.label, locale)}

@@ -7,6 +7,7 @@ import {
   type ClientConfigSnapshot,
   type ZCodeJwtTokenResolver,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import type { IClientConfigService } from "./clientConfig.js";
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -72,6 +73,9 @@ export function createClientConfigService(dependencies: {
   return {
     async getSnapshot(options = {}) {
       const { forceRefresh } = clientConfigReadOptionsSchema.parse(options);
+      // acp-bridge(privacy): 隐私模式不匿名拉 client/configs；等价于服务端未下发任何配置，
+      // 插件商店排序/UI 插件推荐/漏洞上报链接取本地默认（空）。
+      if (isPrivacyMode()) return parseClientConfigSnapshot({ code: 0, data: { configs: {} } });
       const context = await dependencies.resolveRequestContext();
       const authorization = await resolveOptionalZCodeAuthorization(
         dependencies.resolveZcodeJwtToken,

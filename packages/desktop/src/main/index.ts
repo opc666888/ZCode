@@ -18,6 +18,7 @@ import {
 import armsRum from "@arms/rum-electron";
 import { createArmsUserIdentitySync } from "./armsUserIdentity.js";
 import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import {
   createDesktopContextPromptRollout,
   createElectronDesktopContextPromptConfigFetcher,
@@ -2723,8 +2724,12 @@ app.whenReady().then(async () => {
   // 是面向打包发布客户端的安全门，对未打包 dev 运行时无意义。打包版 app.isPackaged === true，
   // gate 照常生效，对真实用户零影响。
   const skipForceUpdateForLocalDevRuntime = !app.isPackaged;
+  // acp-bridge(privacy): 强制更新检查受自动更新开关与隐私模式约束；未启用自动更新的构建不联网查最低版本。
   const forceUpdateGuardResult =
-    ZCODE_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
+    ZCODE_PRODUCT_FLAVOR === "production" &&
+    !skipForceUpdateForLocalDevRuntime &&
+    ZCODE_AUTO_UPDATE_ENABLED &&
+    !isPrivacyMode()
       ? await maybeBlockStartupForForceUpdate({
           resolveZcodeJwtToken: () => autoUpdateCredentialService.load("zcodejwttoken"),
           locale: currentApplicationLocale,

@@ -6,6 +6,7 @@ import {
   type ApiClient,
   type Locale,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import { readApiJson } from "#src/providers/api/apiJson.js";
 import type { IMarketingTouchService } from "#src/marketing-touch/marketingTouch.js";
 
@@ -49,6 +50,16 @@ export function createMarketingTouchService(options: {
   }
   return {
     async query({ locale }) {
+      // acp-bridge(privacy): 隐私模式不向 zcode.z.ai 轮询营销弹窗（也就不带 X-Device-Mid），返回空投放。
+      if (isPrivacyMode()) {
+        return {
+          serverTime: Date.now(),
+          language: locale,
+          deliveries: [],
+          rejectedCount: 0,
+          scope: scope,
+        };
+      }
       const identity = await context(locale);
       const url = new URL("/api/v1/marketing/touch", options.baseUrl);
       url.searchParams.set("seq", String(bootRequestSeq++));
@@ -66,6 +77,8 @@ export function createMarketingTouchService(options: {
     },
     async report(input) {
       const parsed = reportSchema.parse(input);
+      // acp-bridge(privacy): 隐私模式下没有可上报的投放，直接忽略。
+      if (isPrivacyMode()) return;
       const identity = await context(parsed.locale);
       // 领取期间账号可能已切换；禁止把旧操作用新凭据上报，也不向 UI 暴露凭据。
       if (identity.scope !== parsed.scope) throw new Error("marketing_identity_changed");

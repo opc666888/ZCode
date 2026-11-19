@@ -6,6 +6,7 @@ import {
   ZCODE_ENV,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import {
   createSingleFeatureRollout,
   type SingleFeatureRollout,
@@ -91,6 +92,8 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
   resolveZcodeJwtToken?: ZCodeJwtTokenResolver;
 }): (signal: AbortSignal) => Promise<unknown> {
   return async (signal) => {
+    // acp-bridge(privacy): 隐私模式不请求远程灰度配置；等价于"服务端未下发任何灰度项"，各功能取本地默认（关闭）。
+    if (isPrivacyMode()) return { code: 0, data: { configs: {} } };
     const { net } = await import("electron");
     const endpointOrigin = await options.resolveEndpointOrigin();
     const authorization = await resolveOptionalZCodeAuthorization(options.resolveZcodeJwtToken);

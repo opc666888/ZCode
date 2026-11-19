@@ -11,6 +11,7 @@ import {
   type TelemetryRendererContext,
   type OAuthLoginAttribution,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import { mkdir, open, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { version } from "node:os";
@@ -423,6 +424,8 @@ export function createTelemetryCore(dependencies: TelemetryCoreDependencies = {}
   ): Promise<void> {
     // 构建期未配置事件上报端点时不上报（见 docs/desktop/build-time-optional-capabilities.md）
     if (!REPORT_ENDPOINT) return;
+    // acp-bridge(privacy): 隐私模式运行时也不上报事件（构建期已置空端点，这里兜住 ZCODE_PRIVACY_MODE=0 构建 + 运行时重新开启的情况）。
+    if (isPrivacyMode()) return;
     // body 的 client_language 与 X-Client-Language 同源，都取发送时刻的界面语言。
     const hostClientLanguage = dependencies.resolveClientLanguage?.()?.trim();
     const context = hostClientLanguage
