@@ -25,6 +25,8 @@ export const ACP_PROVIDER_PREFIX = "acp:";
 export const ACP_DEFAULT_MODEL_ID = "default";
 /** ACP 智能体没有 ZCode 的思考档位；唯一取值让 Selection 校验恒定通过。 */
 export const ACP_REASONING_LEVEL = "default";
+/** 思考强度档位：对应 Claude Code 的 effort；`default` = 不设置，用智能体自己的默认值。Host 侧同名常量必须一致。 */
+export const ACP_REASONING_LEVELS = ["default", "low", "medium", "high", "xhigh", "max"] as const;
 const ACP_PLACEHOLDER_BASE_URL = "http://127.0.0.1:9/acp-bridge-not-a-model-endpoint";
 
 export function acpProviderId(agentId: string): string {
@@ -64,7 +66,7 @@ function acpModelConfig(): ModelConfig {
     optionSpecs: new ModelOptionSpecsConfig({
       // 映射只为通过配置校验；该 Model 不会真正发请求。
       reasoningLevel: {
-        values: [ACP_REASONING_LEVEL],
+        values: [...ACP_REASONING_LEVELS],
         map: '{"output_config":{"effort":reasoningLevel}}',
       },
       maxOutputTokens: { max: 64_000, map: '{"max_tokens":maxOutputTokens}' },
@@ -95,12 +97,14 @@ export function buildAcpProviders(agents: readonly AcpBridgeAgentConfig[]): Prov
   });
 }
 
-/** ACP 选择补齐唯一思考档位：Registry 校验与 Model Factory 都要求完整执行选择。 */
+/** ACP 选择补齐思考档位（缺省或不认识的值按 default）：Registry 校验与 Model Factory 都要求完整执行选择。 */
 export function completeAcpSelection<T extends { providerId: string; options?: Record<string, unknown> }>(
   selection: T,
 ): T {
   if (acpAgentIdOf(selection.providerId) === undefined) return selection;
-  if (selection.options?.reasoningLevel === ACP_REASONING_LEVEL) return selection;
+  const level = selection.options?.reasoningLevel;
+  if (typeof level === "string" && (ACP_REASONING_LEVELS as readonly string[]).includes(level))
+    return selection;
   return { ...selection, options: { ...selection.options, reasoningLevel: ACP_REASONING_LEVEL } };
 }
 

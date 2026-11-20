@@ -16,8 +16,10 @@ export interface AcpBridgeProviderAgent {
 
 export const ACP_BRIDGE_PROVIDER_PREFIX = "acp:";
 export const ACP_BRIDGE_DEFAULT_MODEL_ID = "default";
-/** ACP 智能体没有 ZCode 的思考档位；唯一取值让 Selection 校验恒定通过。 */
+/** 缺省档位：不设置思考强度，用智能体自己的默认值。 */
 export const ACP_BRIDGE_REASONING_LEVEL = "default";
+/** 思考强度档位（对应 Claude Code 的 effort）；与 CLI 的 ACP_REASONING_LEVELS 必须一致。 */
+export const ACP_BRIDGE_REASONING_LEVELS = ["default", "low", "medium", "high", "xhigh", "max"] as const;
 
 export type BuildAcpBridgeProviders = (agents: readonly AcpBridgeProviderAgent[]) => Provider[];
 export type IsAcpBridgeProviderId = (providerId: string | null | undefined) => boolean;

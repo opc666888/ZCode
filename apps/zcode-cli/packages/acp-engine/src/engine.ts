@@ -99,6 +99,7 @@ interface SessionRuntime {
   fingerprint?: string;
   acpSessionId?: string;
   appliedModel?: string;
+  appliedEffort?: string;
   turn?: ActiveTurn;
   busy: boolean;
 }
@@ -178,6 +179,7 @@ class AcpEngineImpl implements AcpEngine {
     try {
       proc = await this.ensureConnection(rt, input, turn);
       await this.applyModel(rt, proc, input.modelId, turn);
+      await this.applyEffort(rt, proc, input.effort, turn);
     } catch (error) {
       await turn.drain();
       if (error instanceof AbortedError || input.signal.aborted) return result("cancelled");
@@ -273,6 +275,7 @@ class AcpEngineImpl implements AcpEngine {
     rt.proc = proc;
     rt.fingerprint = fingerprint;
     rt.appliedModel = undefined;
+    rt.appliedEffort = undefined;
     rt.acpSessionId = undefined;
     void proc.exited.then((info) => {
       if (rt.proc === proc) {
@@ -319,6 +322,29 @@ class AcpEngineImpl implements AcpEngine {
     } catch (error) {
       await this.dropConnection(rt);
       throw error;
+    }
+  }
+
+  /** 切思考强度：`default` 或未指定不发请求；智能体不支持（没有 effort 配置项）时只提示一次，不影响回合。 */
+  private async applyEffort(
+    rt: SessionRuntime,
+    proc: AgentProcess,
+    effort: string | undefined,
+    turn: ActiveTurn,
+  ): Promise<void> {
+    if (!effort || effort === "default" || effort === rt.appliedEffort) return;
+    try {
+      await proc.request(
+        "session/set_config_option",
+        { sessionId: rt.acpSessionId, configId: "effort", value: effort },
+        turn.signal,
+      );
+      rt.appliedEffort = effort;
+    } catch (error) {
+      if (error instanceof AbortedError || error instanceof AgentExitedError) throw error;
+      this.log(`[acp-engine] 切换思考强度 ${effort} 失败：${errorMessage(error)}`);
+      rt.appliedEffort = effort; // 同一会话不反复重试、不反复提示
+      turn.emit({ kind: "notice", message: `切换思考强度「${effort}」失败，继续使用当前强度` });
     }
   }
 
@@ -399,6 +425,7 @@ class AcpEngineImpl implements AcpEngine {
     rt.proc = undefined;
     rt.acpSessionId = undefined;
     rt.appliedModel = undefined;
+    rt.appliedEffort = undefined;
     if (proc) await proc.kill();
   }
 

@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 process.env.GIT_CONFIG_COUNT = "2";
+// 测试不能依赖开发机上是否装了 Zed / Claude 适配器：默认关掉 acp-engine 的内置智能体。
+process.env.ZCODE_ACP_BUILTIN ??= "0";
 
 // Bugfix: Git Bash 会把 /usr/bin（GNU tar 1.35）注入 PATH 最前，子进程 spawn "tar"
 // 解析到 GNU tar 后会把归档参数里的 `C:` 当远程主机（"Cannot connect to C"），

@@ -21,7 +21,7 @@ import type { Provider } from "../resolver.js";
 import {
   ACP_BRIDGE_DEFAULT_MODEL_ID,
   ACP_BRIDGE_PROVIDER_PREFIX,
-  ACP_BRIDGE_REASONING_LEVEL,
+  ACP_BRIDGE_REASONING_LEVELS,
   type AcpBridgeProviderAgent,
 } from "./contract.js";
 
@@ -62,7 +62,7 @@ function acpBridgeModelConfig(): ModelConfig {
     optionSpecs: new ModelOptionSpecsConfig({
       // 映射只为通过配置校验；该 Model 不会真正发请求。
       reasoningLevel: {
-        values: [ACP_BRIDGE_REASONING_LEVEL],
+        values: [...ACP_BRIDGE_REASONING_LEVELS],
         map: '{"output_config":{"effort":reasoningLevel}}',
       },
       maxOutputTokens: { max: 64_000, map: '{"max_tokens":maxOutputTokens}' },

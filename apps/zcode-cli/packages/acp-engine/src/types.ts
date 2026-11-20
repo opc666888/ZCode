@@ -66,6 +66,8 @@ export interface TurnInput {
   cwd: string;
   agent: AcpAgentConfig;
   modelId?: string;
+  /** 思考强度（ACP 配置项 effort：low/medium/high/xhigh/max）；缺省或 default = 用智能体自己的默认值。 */
+  effort?: string;
   prompt: string;
   images?: { mimeType: string; data: string }[];
   signal: AbortSignal;

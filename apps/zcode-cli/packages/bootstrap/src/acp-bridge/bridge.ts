@@ -8,6 +8,7 @@
 import type { ModelSelection } from "@zcode/contracts";
 import {
   ACP_DEFAULT_MODEL_ID,
+  ACP_REASONING_LEVEL,
   acpAgentIdOf,
   buildAcpProviders,
   completeAcpSelection,
@@ -35,12 +36,15 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
       const agent = agentOf(input.selection);
       if (!agent) throw new Error(`ACP agent not configured: ${input.selection.providerId}`);
       const modelId = input.selection.modelId;
+      const level = (input.selection as { options?: { reasoningLevel?: unknown } }).options?.reasoningLevel;
+      const effort = typeof level === "string" ? level : undefined;
       return options.engine.runTurn(
         {
           zcodeSessionId: input.sessionId,
           cwd: input.cwd,
           agent,
           ...(modelId && modelId !== ACP_DEFAULT_MODEL_ID ? { modelId } : {}),
+          ...(effort && effort !== ACP_REASONING_LEVEL ? { effort } : {}),
           prompt: input.prompt,
           ...(input.images?.length ? { images: input.images } : {}),
           signal: input.signal,
