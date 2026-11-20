@@ -112,3 +112,49 @@ export function writeModelCache(stateDir: string, agentId: string, options: Agen
     // 缓存只是为了下次启动显示得更准，失败就用内置清单
   }
 }
+
+/** 智能体自己的斜杠命令（如 Claude Code 的 /usage），缓存下来给宿主的命令菜单用。 */
+export interface AgentSlashCommand {
+  name: string;
+  description: string;
+}
+
+function cleanCommands(raw: unknown): AgentSlashCommand[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: AgentSlashCommand[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const { name, description } = item as { name?: unknown; description?: unknown };
+    if (typeof name !== "string") continue;
+    const clean = name.trim().replace(/^\/+/, "");
+    // 只收简单名字：命令菜单里要能直接当 /名字 发出去。
+    if (!/^[A-Za-z0-9][\w:.-]{0,63}$/.test(clean) || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push({ name: clean, description: typeof description === "string" ? description.slice(0, 300) : "" });
+  }
+  return out.slice(0, 200);
+}
+
+/** 写命令缓存（原子替换）；列表为空也写，表示这个智能体现在没有命令。 */
+export function writeCommandCache(stateDir: string, agentId: string, commands: unknown): void {
+  try {
+    mkdirSync(stateDir, { recursive: true });
+    const file = join(stateDir, `commands-${agentId}.json`);
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ version: 1, commands: cleanCommands(commands) }));
+    renameSync(tmp, file);
+  } catch {
+    // 缓存写不了不影响回合
+  }
+}
+
+/** 读某个智能体缓存的斜杠命令；没有就返回 []。 */
+export function readCommandCache(dataBaseDir: string, agentId: string): AgentSlashCommand[] {
+  try {
+    const file = join(dataBaseDir, ".zcode", "acp-bridge", `commands-${agentId}.json`);
+    return cleanCommands((JSON.parse(readFileSync(file, "utf8")) as { commands?: unknown })?.commands);
+  } catch {
+    return [];
+  }
+}

@@ -15,4 +15,11 @@ export {
   type AcpAgentsConfigReadResult,
   type BuiltinAgentProbe,
 } from "./config.js";
-export { FALLBACK_CLAUDE_MODELS, modelCachePath, presentModels, type AgentModelOption } from "./models.js";
+export {
+  FALLBACK_CLAUDE_MODELS,
+  modelCachePath,
+  presentModels,
+  readCommandCache,
+  type AgentModelOption,
+  type AgentSlashCommand,
+} from "./models.js";

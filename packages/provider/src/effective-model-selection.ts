@@ -44,14 +44,20 @@ export function resolveEffectiveModelSelection(input: {
   if (!provider || (provider.config.visibility === "hidden" && kind !== "account-offpeak")) {
     return Object.freeze({ effectiveSelection: null, selectionIssue: "provider-not-found" });
   }
-  const model = provider.models.find((candidate) => candidate.modelId === original.modelId);
-  if (!model) return Object.freeze({ effectiveSelection: null, selectionIssue: "model-not-found" });
+  let model = provider.models.find((candidate) => candidate.modelId === original.modelId);
   let normalized = original;
+  if (!model && providerId.startsWith("acp:") && provider.models[0]) {
+    // acp-bridge: 外部智能体的模型清单是它自己报的显示名，登录前后、升级后会变。存下的选择对不上时
+    // 退到清单第一个（默认），不让用户卡在「选择模型」发不出消息。只对 acp: Provider 生效。
+    model = provider.models[0];
+    normalized = { ...original, modelId: model.modelId };
+  }
+  if (!model) return Object.freeze({ effectiveSelection: null, selectionIssue: "model-not-found" });
   let validation = validateModelSelectionOptions(model, normalized);
   if (!validation.ok && validation.code === "reasoning-level-not-supported") {
     const reasoningLevel = input.resolveLegacyReasoningLevel?.({ ...original, providerId });
     if (reasoningLevel !== undefined) {
-      const candidate = { ...original, options: { ...original.options, reasoningLevel } };
+      const candidate = { ...normalized, options: { ...normalized.options, reasoningLevel } };
       const checked = validateModelSelectionOptions(model, candidate);
       if (checked.ok) {
         normalized = candidate;
@@ -61,7 +67,7 @@ export function resolveEffectiveModelSelection(input: {
   }
   const selection = Object.freeze({
     providerId,
-    modelId: original.modelId,
+    modelId: normalized.modelId,
     ...(validation.ok && normalized.options
       ? { options: Object.freeze({ ...normalized.options }) }
       : {}),

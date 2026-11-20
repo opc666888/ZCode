@@ -38,7 +38,12 @@ import {
   isCancelAuthText,
   looksLikeAuthCode,
 } from "./auth.js";
-import { modelOptionsFromConfigOptions, writeModelCache } from "./models.js";
+import {
+  modelOptionsFromConfigOptions,
+  writeCommandCache,
+  writeModelCache,
+  type AgentModelOption,
+} from "./models.js";
 
 export const DEFAULT_CANCEL_TIMEOUT_MS = 5000;
 
@@ -110,6 +115,8 @@ interface SessionRuntime {
   acpSessionId?: string;
   appliedModel?: string;
   appliedEffort?: string;
+  /** session/new 报的模型清单，等第一轮成功后再写缓存。 */
+  pendingModels?: AgentModelOption[];
   /** 正在等用户发授权码的登录；originalPrompt 是触发授权的那条消息，授权成功后接着处理。 */
   resumePrompt?: { prompt: string; images?: TurnInput["images"] };
   pendingAuth?: { login: AuthLogin; originalPrompt: string; images?: TurnInput["images"] };
@@ -256,6 +263,11 @@ class AcpEngineImpl implements AcpEngine {
         return result("cancelled");
       }
       response = winner;
+      if (rt.pendingModels) {
+        // 这一轮答完了＝账号已登录：这时的模型清单才是账号真实能用的，下次启动模型选择器按它显示。
+        writeModelCache(this.stateDir, input.agent.id, rt.pendingModels);
+        rt.pendingModels = undefined;
+      }
     } catch (error) {
       await turn.drain();
       if (input.signal.aborted || killedForTimeout) return result("cancelled");
@@ -302,7 +314,7 @@ class AcpEngineImpl implements AcpEngine {
       input.agent,
       input.cwd,
       {
-        onUpdate: (params) => this.handleUpdate(rt, holder.proc, params),
+        onUpdate: (params) => this.handleUpdate(rt, holder.proc, params, input.agent.id),
         onPermission: (params, signal) => this.handlePermission(rt, holder.proc, params, signal),
       },
       this.log,
@@ -352,11 +364,10 @@ class AcpEngineImpl implements AcpEngine {
         );
         if (typeof created?.sessionId !== "string")
           throw new Error("ACP 智能体 session/new 没有返回 sessionId");
-        // 记下智能体报的模型清单（带版本号），下次启动时模型选择器按它显示。
-        writeModelCache(
-          this.stateDir,
-          input.agent.id,
-          modelOptionsFromConfigOptions((created as { configOptions?: unknown }).configOptions),
+        // 先记在内存里：没登录时智能体报的是一份通用清单，不能拿它盖掉账号真实的清单；
+        // 等这一轮真的答完（说明已登录）再落盘，见下面 response = winner 处。
+        rt.pendingModels = modelOptionsFromConfigOptions(
+          (created as { configOptions?: unknown }).configOptions,
         );
         rt.acpSessionId = created.sessionId;
         await this.store.set(input.zcodeSessionId, input.agent.id, created.sessionId);
@@ -502,7 +513,27 @@ class AcpEngineImpl implements AcpEngine {
     }
   }
 
-  private handleUpdate(rt: SessionRuntime, proc: AgentProcess | undefined, params: unknown): void {
+  private handleUpdate(
+    rt: SessionRuntime,
+    proc: AgentProcess | undefined,
+    params: unknown,
+    agentId?: string,
+  ): void {
+    // 智能体的斜杠命令清单常在建会话后、回合之外就发来：先记下来，宿主的命令菜单读这份缓存。
+    const early =
+      params && typeof params === "object" ? (params as { update?: unknown }).update : undefined;
+    if (
+      agentId &&
+      early &&
+      typeof early === "object" &&
+      (early as { sessionUpdate?: unknown }).sessionUpdate === "available_commands_update"
+    ) {
+      writeCommandCache(
+        this.stateDir,
+        agentId,
+        (early as { availableCommands?: unknown }).availableCommands,
+      );
+    }
     const turn = rt.turn;
     if (!turn || !proc || rt.proc !== proc) {
       this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 收到回合外的 session/update，已忽略`);

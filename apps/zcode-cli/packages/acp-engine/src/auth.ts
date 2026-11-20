@@ -199,6 +199,8 @@ export class AuthLogin {
 /** 对话里给用户看的授权说明。链接单独成行，方便整条复制。 */
 export function authInstructions(url: string): string {
   return [
+    "> 软件提示（不是 Claude 的回答）：这台电脑上的 Claude 账号还没有登录。",
+    "",
     "**需要先授权你的 Claude 账号**（只用做一次）",
     "",
     "1. 复制下面这条链接，粘贴到**这个账号对应的指纹浏览器环境**里打开。不要用电脑自带的浏览器，软件也不会替你打开。",

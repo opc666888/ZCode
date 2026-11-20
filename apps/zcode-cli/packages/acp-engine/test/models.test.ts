@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   modelOptionsFromConfigOptions,
   presentModels,
+  readCommandCache,
   readModelCache,
+  writeCommandCache,
   writeModelCache,
 } from "../src/models.js";
 import { makeTempDir, removeDir } from "./helpers.js";
@@ -63,5 +65,25 @@ describe("模型清单（带版本号的显示名）", () => {
     writeModelCache(stateDir, "empty", []);
     expect(readModelCache(base, "empty")).toEqual([]);
     expect(readModelCache(base, "missing")).toEqual([]);
+  });
+  it("斜杠命令缓存：去掉开头的 /、去重、丢掉不像命令名的；空清单也写（表示没有命令）", async () => {
+    const base = await makeTempDir("cmds");
+    const stateDir = join(base, ".zcode", "acp-bridge");
+    writeCommandCache(stateDir, "claude", [
+      { name: "/usage", description: "看用量" },
+      { name: "usage", description: "重复" },
+      { name: "context" },
+      { name: "有 空格" },
+      { name: 42 },
+      "乱七八糟",
+    ]);
+    expect(readCommandCache(base, "claude")).toEqual([
+      { name: "usage", description: "看用量" },
+      { name: "context", description: "" },
+    ]);
+    writeCommandCache(stateDir, "claude", []);
+    expect(readCommandCache(base, "claude")).toEqual([]);
+    expect(readCommandCache(base, "none")).toEqual([]);
+    await removeDir(base);
   });
 });
