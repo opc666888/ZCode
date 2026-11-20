@@ -6,7 +6,12 @@ export * from "./contract.js";
 export { createAcpEngine } from "./engine.js";
 export {
   acpAgentsConfigPath,
+  BUILTIN_CLAUDE_AGENT_ID,
+  BUILTIN_CLAUDE_ENTRY_ENV,
+  builtinClaudeAgent,
   loadAcpAgents,
   readAcpAgentsConfig,
+  resolveBuiltinClaudeEntry,
   type AcpAgentsConfigReadResult,
+  type BuiltinAgentProbe,
 } from "./config.js";
