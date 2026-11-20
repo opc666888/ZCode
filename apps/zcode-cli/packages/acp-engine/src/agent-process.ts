@@ -9,6 +9,7 @@
  * stderr 只保留末尾少量文本用于报错，并做令牌样式脱敏。
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { userInfo } from "node:os";
 import { Readable, Writable } from "node:stream";
 import {
   client,
@@ -51,6 +52,32 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms).unref?.());
 }
 
+/**
+ * 子进程的基础环境。桌面端拉起 CLI 时环境被收得很干净，常常没有 USER / LOGNAME；
+ * 而 Claude Code 在 macOS 上是按用户名去钥匙串取登录凭据的，缺了就找不到，
+ * 适配器会报 "Authentication required"（2026-11-20 本机实测：补上 USER 后同一账号立即可用）。
+ * 这里只在缺失时从系统账户信息补 USER / LOGNAME / HOME / SHELL，已有的值一律不动；agent.env 仍然最后覆盖。
+ */
+export function buildAgentEnv(
+  base: NodeJS.ProcessEnv,
+  overrides: Record<string, string> | undefined,
+  info: () => { username: string; homedir: string; shell: string | null } = userInfo,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base };
+  try {
+    const who = info();
+    if (who.username) {
+      env.USER ||= who.username;
+      env.LOGNAME ||= who.username;
+    }
+    if (who.homedir) env.HOME ||= who.homedir;
+    if (who.shell) env.SHELL ||= who.shell;
+  } catch {
+    // 取不到系统账户信息（极少见）：保持原样，不阻断启动
+  }
+  return { ...env, ...overrides };
+}
+
 /** 把看起来像令牌的片段替换掉，避免 stderr 尾巴把密钥带进错误信息。 */
 export function redactSecrets(text: string): string {
   return text
@@ -79,7 +106,7 @@ export class AgentProcess {
   ) {
     this.child = spawn(agent.command, agent.args ?? [], {
       cwd,
-      env: { ...process.env, ...agent.env },
+      env: buildAgentEnv(process.env, agent.env),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
