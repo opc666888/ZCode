@@ -168,6 +168,11 @@ describe("内置默认 Claude Code（装上就能用）", () => {
     ]);
   });
 
+  it("ZCODE_ACP_AGENT_HOME 把内置智能体的 HOME 指回真实家目录（宿主隔离 HOME 时钥匙串才找得到登录）", () => {
+    const result = readAcpAgentsConfig(base, probe([dataEntry(base)], { ZCODE_ACP_AGENT_HOME: "/Users/real" }));
+    expect(result.agents[0]?.env).toEqual({ ELECTRON_RUN_AS_NODE: "1", HOME: "/Users/real" });
+  });
+
   it("用户自己配了智能体就不再追加内置项；ZCODE_ACP_BUILTIN=0 可以整个关掉", async () => {
     await mkdir(join(base, ".zcode"), { recursive: true });
     await writeFile(acpAgentsConfigPath(base), JSON.stringify({ agents: [{ id: "mine", command: "/x/launcher" }] }));

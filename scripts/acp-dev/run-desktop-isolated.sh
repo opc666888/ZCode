@@ -106,8 +106,13 @@ build_env_pairs() {
   )
   # GUI 验证：目录选择对话框自动返回该目录（只接受隔离根内路径，见 electron-isolation-guard.cjs）。
   [ -n "${ACP_DEV_AUTO_SELECT_DIR:-}" ] && ENV_PAIRS+=("ACP_DEV_AUTO_SELECT_DIR=$ACP_DEV_AUTO_SELECT_DIR")
-  # 代理等网络变量原样透传（开发版访问网络沿用当前 shell 的出口设置）。
+  # 开发版 HOME 被隔离，内置 Claude Code 找不到 Zed 装的适配器、也读不到真实账号目录时，
+  # 用这几个变量显式指过去（只在设置了才传）：适配器入口、Claude 账号配置目录、关闭内置智能体。
   local v
+  for v in ZCODE_ACP_CLAUDE_ENTRY ZCODE_ACP_AGENT_HOME CLAUDE_CONFIG_DIR ZCODE_ACP_BUILTIN; do
+    [ -n "${!v:-}" ] && ENV_PAIRS+=("$v=${!v}")
+  done
+  # 代理等网络变量原样透传（开发版访问网络沿用当前 shell 的出口设置）。
   for v in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy ALL_PROXY all_proxy; do
     [ -n "${!v:-}" ] && ENV_PAIRS+=("$v=${!v}")
   done

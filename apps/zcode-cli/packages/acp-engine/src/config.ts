@@ -110,7 +110,14 @@ export function builtinClaudeAgent(
     command: probe.execPath ?? process.execPath,
     args: [entry],
     // CLI 由桌面端的 Electron 以 Node 模式拉起时，子进程也要保持 Node 模式；对普通 Node 无影响。
-    env: { ELECTRON_RUN_AS_NODE: "1" },
+    // ZCODE_ACP_AGENT_HOME：宿主把 HOME 隔离（沙箱、开发隔离）时，指回真实家目录——
+    // Claude Code 的登录凭据在系统钥匙串里，钥匙串位置跟 HOME 走，HOME 不对就会报「需要授权」。
+    env: {
+      ELECTRON_RUN_AS_NODE: "1",
+      ...((probe.env ?? process.env).ZCODE_ACP_AGENT_HOME?.trim()
+        ? { HOME: (probe.env ?? process.env).ZCODE_ACP_AGENT_HOME!.trim() }
+        : {}),
+    },
     models: [...BUILTIN_CLAUDE_MODELS],
   };
 }
