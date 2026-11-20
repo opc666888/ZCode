@@ -55,7 +55,20 @@ export interface AuthLoginResult {
   ok: boolean;
   /** 失败原因（白话，已去掉链接和可能的密钥片段）。 */
   reason?: string;
+  /** 是连不上 Claude 官方服务器（而不是授权码有问题）。 */
+  network?: boolean;
 }
+
+/** 登录命令的报错是不是「网络连不上」（授权码本身没问题，只是没送到官方服务器）。 */
+export function isNetworkFailure(text: string): boolean {
+  return /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|socket hang up|fetch failed|network|timed? ?out|certificate|self[- ]signed/i.test(
+    text,
+  );
+}
+
+/** 连不上官方服务器时给用户看的处理办法。 */
+export const NETWORK_FAILURE_HINT =
+  "连不上 Claude 官方服务器，授权码没能送出去（不是授权码的问题）。请先确认这台电脑的网络环境已经就绪；如果你是通过本机代理上网，到「设置 → HTTP 代理」填上代理地址，重启软件后再授权";
 
 export interface AuthLoginOptions {
   /** 等授权链接出现的最长时间。 */
@@ -163,7 +176,9 @@ export class AuthLogin {
     }
     this.finished = true;
     if (this.exitCode === 0) return { ok: true };
-    return { ok: false, reason: safeReason(this.output.slice(before)) || "授权码不对或已经过期" };
+    const raw = stripTerminalCodes(this.output.slice(before));
+    if (isNetworkFailure(raw)) return { ok: false, network: true, reason: NETWORK_FAILURE_HINT };
+    return { ok: false, reason: safeReason(raw) || "授权码不对或已经过期" };
   }
 
   async cancel(): Promise<void> {

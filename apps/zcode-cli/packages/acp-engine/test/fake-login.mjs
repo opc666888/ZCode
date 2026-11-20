@@ -4,6 +4,7 @@
  *   FAKE_LOGIN_LOG   把收到的参数和 BROWSER / NO_BROWSER 环境写成一行 JSON（断言「没让它开浏览器」）
  *   FAKE_LOGIN_MARK  授权码正确时创建这个文件（假智能体据此认为已登录）
  *   FAKE_LOGIN_NO_URL=1  不输出链接直接失败（测生成不了链接的情况）
+ * 授权码 NETDOWN-CODE-1234567890 模拟换凭据时连不上官方服务器。
  * 正确的授权码固定为 GOOD-CODE-1234567890#state。
  */
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -29,6 +30,10 @@ rl.once("line", (line) => {
     if (process.env.FAKE_LOGIN_MARK) writeFileSync(process.env.FAKE_LOGIN_MARK, "ok");
     process.stdout.write("\nLogin successful.\n");
     process.exit(0);
+  }
+  if (line.trim() === "NETDOWN-CODE-1234567890") {
+    process.stdout.write("\nLogin failed: connect ECONNREFUSED 198.18.0.207:443\n");
+    process.exit(1);
   }
   process.stdout.write("\nLogin failed: invalid authorization code\n");
   process.exit(1);

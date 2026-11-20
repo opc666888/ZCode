@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentEnv } from "../src/agent-process.js";
+import { buildAgentEnv, proxyEnvKeyNames } from "../src/agent-process.js";
 
 const who = () => ({ username: "alice", homedir: "/Users/alice", shell: "/bin/zsh" });
 
@@ -22,5 +22,17 @@ describe("buildAgentEnv", () => {
       throw new Error("no passwd entry");
     });
     expect(env).toEqual({ A: "1", B: "2" });
+  });
+  it("设置页的代理（ZCODE_HTTP_PROXY）补成标准变量；已有的标准变量不动；没配就不加", () => {
+    const filled = buildAgentEnv({ ZCODE_HTTP_PROXY: "http://127.0.0.1:7890" }, undefined, who);
+    expect(filled.HTTPS_PROXY).toBe("http://127.0.0.1:7890");
+    expect(filled.http_proxy).toBe("http://127.0.0.1:7890");
+    expect(filled.NO_PROXY).toBe("localhost,127.0.0.1,::1");
+    const kept = buildAgentEnv({ ZCODE_HTTP_PROXY: "http://a:1", HTTPS_PROXY: "http://b:2", ZCODE_NO_PROXY: ".corp" }, undefined, who);
+    expect(kept.HTTPS_PROXY).toBe("http://b:2");
+    expect(kept.HTTP_PROXY).toBe("http://a:1");
+    expect(kept.NO_PROXY).toBe(".corp");
+    expect(proxyEnvKeyNames(kept)).toContain("HTTPS_PROXY");
+    expect(proxyEnvKeyNames(buildAgentEnv({ PATH: "/usr/bin" }, undefined, who))).toEqual([]);
   });
 });

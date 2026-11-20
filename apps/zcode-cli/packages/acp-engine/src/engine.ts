@@ -21,7 +21,7 @@ import type {
   TurnInput,
   TurnResult,
 } from "./types.js";
-import { AbortedError, AgentExitedError, AgentProcess } from "./agent-process.js";
+import { AbortedError, AgentExitedError, AgentProcess, buildAgentEnv, proxyEnvKeyNames } from "./agent-process.js";
 import { SessionStore } from "./session-store.js";
 import {
   createToolCallMemory,
@@ -382,7 +382,9 @@ class AcpEngineImpl implements AcpEngine {
     try {
       const url = await login.start();
       rt.pendingAuth = { login, originalPrompt, ...(images?.length ? { images } : {}) };
-      this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 需要授权，已生成授权链接`);
+      this.log(
+        `[acp-engine] 会话 ${rt.zcodeSessionId} 需要授权，已生成授权链接；代理变量：${proxyEnvKeyNames(buildAgentEnv(process.env, input.agent.env)).join(",") || "无"}`,
+      );
       turn.emit({ kind: "text", delta: authInstructions(url) });
       return true;
     } catch (error) {
@@ -438,6 +440,12 @@ class AcpEngineImpl implements AcpEngine {
       return "continue";
     }
     this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 授权失败`);
+    if (outcome.network) {
+      // 网络不通时再给链接也没用：说明原因就停，用户修好网络后重新发消息会再次进入授权。
+      rt.pendingAuth = undefined;
+      turn.emit({ kind: "text", delta: `授权没有成功：${outcome.reason}。` });
+      return "handled";
+    }
     turn.emit({
       kind: "text",
       delta: `授权没有成功（${outcome.reason ?? "授权码不对或已经过期"}）。我重新给你一条链接：\n\n`,

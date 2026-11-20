@@ -75,7 +75,24 @@ export function buildAgentEnv(
   } catch {
     // 取不到系统账户信息（极少见）：保持原样，不阻断启动
   }
-  return { ...env, ...overrides };
+  const merged: NodeJS.ProcessEnv = { ...env, ...overrides };
+  // 设置页填的 HTTP 代理，宿主是用 ZCODE_HTTP_PROXY 传下来的；标准的 HTTP(S)_PROXY 可能已被清洗掉。
+  // 外部智能体和它的登录命令只认标准变量，这里在缺失时补上，已有的不动。
+  const proxy = merged.ZCODE_HTTP_PROXY?.trim();
+  if (proxy) {
+    for (const key of ["HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"]) merged[key] ||= proxy;
+    const noProxy = merged.ZCODE_NO_PROXY?.trim() || "localhost,127.0.0.1,::1";
+    merged.NO_PROXY ||= noProxy;
+    merged.no_proxy ||= noProxy;
+  }
+  return merged;
+}
+
+/** 只列出环境里有哪些代理相关变量名（不含值），排查「连不上官方服务器」用。 */
+export function proxyEnvKeyNames(env: NodeJS.ProcessEnv): string[] {
+  return Object.keys(env)
+    .filter((key) => /proxy/i.test(key) && env[key])
+    .sort();
 }
 
 /** 把看起来像令牌的片段替换掉，避免 stderr 尾巴把密钥带进错误信息。 */

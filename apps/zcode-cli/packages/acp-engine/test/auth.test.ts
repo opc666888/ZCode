@@ -100,6 +100,16 @@ describe("AuthLogin × 假登录命令", () => {
     expect(existsSync(join(base, "logged-in"))).toBe(false);
   });
 
+  it("换凭据时连不上官方服务器：标成网络问题，给处理办法，不带地址", async () => {
+    const login = new AuthLogin(agent);
+    await login.start();
+    const result = await login.submitCode("NETDOWN-CODE-1234567890");
+    expect(result).toMatchObject({ ok: false, network: true });
+    expect(result.reason).toMatch(/连不上 Claude 官方服务器/);
+    expect(result.reason).toMatch(/HTTP 代理/);
+    expect(result.reason).not.toMatch(/198\.18|ECONNREFUSED/);
+  });
+
   it("生成不了链接：抛白话错误；取消后再提交码按已结束处理", async () => {
     const broken = new AuthLogin({ ...agent, env: { ...agent.env, FAKE_LOGIN_NO_URL: "1" } });
     await expect(broken.start()).rejects.toThrow(/没能生成授权链接.*network unreachable/);
@@ -189,6 +199,16 @@ describe("引擎里的授权对话", () => {
     expect(after.text).toBe("echo:needauth 再来一条");
     // 授权码和链接参数不进引擎日志
     expect(logs.join("\n")).not.toMatch(/GOOD-CODE|WRONG-CODE|SECRET-STATE/);
+  });
+
+  it("网络不通：说明原因就停，不再塞一条新链接；之后再发消息重新进入授权", async () => {
+    await say("needauth 你好");
+    const down = await say("NETDOWN-CODE-1234567890");
+    expect(down.result.stopReason).toBe("end_turn");
+    expect(down.text).toMatch(/连不上 Claude 官方服务器/);
+    expect(down.text).not.toContain("https://claude.example/oauth/authorize");
+    const again = await say("needauth 你好");
+    expect(again.text).toContain("https://claude.example/oauth/authorize");
   });
 
   it("发「取消授权」就放弃；之后再发消息重新给链接", async () => {
