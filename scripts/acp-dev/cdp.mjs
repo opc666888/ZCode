@@ -96,7 +96,7 @@ try {
         return "已点击 <" + el.tagName.toLowerCase() + "> " + (el.innerText || el.getAttribute("aria-label") || "").trim().slice(0, 60);
       })()`),
     );
-  } else if (cmd === "hover-text") {
+  } else if (cmd === "hover-text" || cmd === "mouse-text") {
     // 把 CDP 虚拟鼠标移到包含该文本的最后一个可见元素中心（触发 :hover / 悬停按钮），不动系统鼠标。
     const box = await evaluate(`(() => {
       const want = ${JSON.stringify(arg)};
@@ -109,12 +109,17 @@ try {
     })()`);
     if (!box) throw new Error(`未找到：${arg}`);
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
-    console.log("已悬停", arg, JSON.stringify(box));
+    if (cmd === "mouse-text") {
+      // 真实鼠标按下/抬起：下拉菜单这类只认 pointerdown 的控件，el.click() 打不开
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", clickCount: 1 });
+    }
+    console.log(cmd === "mouse-text" ? "已鼠标点击" : "已悬停", arg, JSON.stringify(box));
   } else if (cmd === "type") {
     await send("Input.insertText", { text: arg ?? "" });
     console.log("已输入", JSON.stringify(arg));
   } else if (cmd === "key") {
-    const keys = { Enter: { code: "Enter", keyCode: 13, text: "\r" }, Escape: { code: "Escape", keyCode: 27 } };
+    const keys = { Enter: { code: "Enter", keyCode: 13, text: "\r" }, Escape: { code: "Escape", keyCode: 27 }, Backspace: { code: "Backspace", keyCode: 8 } };
     const k = keys[arg];
     if (!k) throw new Error(`不支持的按键 ${arg}`);
     const base = { key: arg, code: k.code, windowsVirtualKeyCode: k.keyCode, nativeVirtualKeyCode: k.keyCode };
@@ -143,7 +148,7 @@ try {
     writeFileSync(resolve(arg), Buffer.from(res.result.data, "base64"));
     console.log(resolve(arg));
   } else {
-    console.error("用法：targets | eval <expr> | text | click-text <文本> | click-sel <css> | hover-text <文本> | type <文本> | key <键> | wait-text <文本> [秒] | shot <png>");
+    console.error("用法：targets | eval <expr> | text | click-text <文本> | click-sel <css> | hover-text <文本> | mouse-text <文本> | type <文本> | key <键> | wait-text <文本> [秒] | shot <png>");
     process.exitCode = 2;
   }
 } finally {
