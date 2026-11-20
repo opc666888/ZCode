@@ -10,6 +10,7 @@
  *   hang-ignore-cancel  发一段文本后无视取消，永远不返回
  *   crash               发一段文本后进程退出（模拟崩溃）
  *   fs-outside          读工作区外文件（应被拒）和工作区内文件
+ *   needauth            没登录时报 authRequired（见 FAKE_AGENT_AUTH_FILE），登录后回显
  *   其他                回显 echo:<prompt>
  *
  * 环境变量：
@@ -105,6 +106,14 @@ app.onRequest("session/prompt", async ({ params, client }) => {
   log({ method: "session/prompt", sessionId, text, images });
   const send = (update) => client.notify("session/update", { sessionId, update });
   const scenario = text.split(/\s+/)[0];
+
+  // needauth：标记文件（FAKE_AGENT_AUTH_FILE）不存在时按「没登录」报 authRequired，存在后正常回显。
+  if (scenario === "needauth") {
+    const marker = process.env.FAKE_AGENT_AUTH_FILE;
+    if (!marker || !existsSync(marker)) throw RequestError.authRequired();
+    await send({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: `echo:${text}` } });
+    return { stopReason: "end_turn" };
+  }
 
   if (scenario === "full") {
     await send({

@@ -31,12 +31,21 @@ import {
   promptUsageEvent,
   type ToolCallMemory,
 } from "./update-mapping.js";
+import {
+  AuthLogin,
+  authInstructions,
+  isAuthRequiredError,
+  isCancelAuthText,
+  looksLikeAuthCode,
+} from "./auth.js";
 
 export const DEFAULT_CANCEL_TIMEOUT_MS = 5000;
 
 export interface AcpEngineInternalOptions extends CreateAcpEngineOptions {
   /** 取消后等待智能体回 cancelled 的上限，默认 5000ms（测试可调小）。 */
   cancelTimeoutMs?: number;
+  /** 授权登录的实现（测试注入假的登录命令）。 */
+  createAuthLogin?: (agent: AcpAgentConfig) => AuthLogin;
 }
 
 type PermissionOutcome = {
@@ -100,6 +109,9 @@ interface SessionRuntime {
   acpSessionId?: string;
   appliedModel?: string;
   appliedEffort?: string;
+  /** 正在等用户发授权码的登录；originalPrompt 是触发授权的那条消息，授权成功后接着处理。 */
+  resumePrompt?: { prompt: string; images?: TurnInput["images"] };
+  pendingAuth?: { login: AuthLogin; originalPrompt: string; images?: TurnInput["images"] };
   turn?: ActiveTurn;
   busy: boolean;
 }
@@ -122,12 +134,14 @@ class AcpEngineImpl implements AcpEngine {
   private readonly store: SessionStore;
   private readonly log: (msg: string) => void;
   private readonly cancelTimeoutMs: number;
+  private readonly createAuthLogin: (agent: AcpAgentConfig) => AuthLogin;
   private disposed = false;
 
   constructor(opts: AcpEngineInternalOptions) {
     this.log = opts.log ?? (() => {});
     this.store = new SessionStore(opts.stateDir, this.log);
     this.cancelTimeoutMs = opts.cancelTimeoutMs ?? DEFAULT_CANCEL_TIMEOUT_MS;
+    this.createAuthLogin = opts.createAuthLogin ?? ((agent) => new AuthLogin(agent));
   }
 
   private runtimeFor(zcodeSessionId: string): SessionRuntime {
@@ -175,6 +189,20 @@ class AcpEngineImpl implements AcpEngine {
       toolCallCount: turn.toolCallCount,
     });
 
+    // 上一轮因为没登录而发起了授权：这一条消息按「授权码 / 取消」处理。
+    if (rt.pendingAuth) {
+      const handled = await this.handlePendingAuth(rt, input, turn);
+      if (handled !== "continue") {
+        await turn.drain();
+        return result(input.signal.aborted ? "cancelled" : "end_turn");
+      }
+      // 授权成功：用新的登录状态重连，接着处理触发授权的那条消息。
+      await this.dropConnection(rt);
+    }
+    const promptText = rt.resumePrompt?.prompt ?? input.prompt;
+    const promptImages = rt.resumePrompt ? rt.resumePrompt.images : input.images;
+    rt.resumePrompt = undefined;
+
     let proc: AgentProcess;
     try {
       proc = await this.ensureConnection(rt, input, turn);
@@ -186,8 +214,8 @@ class AcpEngineImpl implements AcpEngine {
       return result("error", errorMessage(error));
     }
 
-    const prompt: unknown[] = [{ type: "text", text: input.prompt }];
-    for (const image of input.images ?? [])
+    const prompt: unknown[] = [{ type: "text", text: promptText }];
+    for (const image of promptImages ?? [])
       prompt.push({ type: "image", mimeType: image.mimeType, data: image.data });
 
     const promptPromise = proc.request<unknown>("session/prompt", {
@@ -231,6 +259,12 @@ class AcpEngineImpl implements AcpEngine {
       if (error instanceof AgentExitedError || !proc.isAlive) {
         // 进程崩溃：丢掉连接，下一轮重新 initialize + session/load。
         await this.dropConnection(rt);
+      }
+      if (isAuthRequiredError(error)) {
+        // 账号没登录：在对话里给出授权链接，等用户把授权码发回来（见 auth.ts）。
+        const started = await this.startAuth(rt, input, promptText, promptImages, turn);
+        await turn.drain();
+        if (started) return result("end_turn");
       }
       return result("error", errorMessage(error));
     } finally {
@@ -323,6 +357,84 @@ class AcpEngineImpl implements AcpEngine {
       await this.dropConnection(rt);
       throw error;
     }
+  }
+
+  /** 发起授权：成功给出链接返回 true；生成不了链接返回 false（调用方按普通错误处理）。 */
+  private async startAuth(
+    rt: SessionRuntime,
+    input: TurnInput,
+    originalPrompt: string,
+    images: TurnInput["images"],
+    turn: ActiveTurn,
+  ): Promise<boolean> {
+    await rt.pendingAuth?.login.cancel();
+    rt.pendingAuth = undefined;
+    const login = this.createAuthLogin(input.agent);
+    try {
+      const url = await login.start();
+      rt.pendingAuth = { login, originalPrompt, ...(images?.length ? { images } : {}) };
+      this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 需要授权，已生成授权链接`);
+      turn.emit({ kind: "text", delta: authInstructions(url) });
+      return true;
+    } catch (error) {
+      this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 发起授权失败：${errorMessage(error)}`);
+      turn.emit({
+        kind: "text",
+        delta: `Claude 账号还没有登录，但没能生成授权链接（${errorMessage(error)}）。请确认网络正常后再发一次消息。`,
+      });
+      return true;
+    }
+  }
+
+  /**
+   * 处理等待授权期间用户发来的消息。
+   * 返回 "continue" 表示授权成功、应接着处理原来的问题；"handled" 表示这一轮到此为止。
+   */
+  private async handlePendingAuth(
+    rt: SessionRuntime,
+    input: TurnInput,
+    turn: ActiveTurn,
+  ): Promise<"continue" | "handled"> {
+    const pending = rt.pendingAuth;
+    if (!pending) return "continue";
+    const text = input.prompt.trim();
+    if (isCancelAuthText(text)) {
+      await pending.login.cancel();
+      rt.pendingAuth = undefined;
+      turn.emit({ kind: "text", delta: "已取消授权。想再用的时候直接发消息，我会重新给你授权链接。" });
+      return "handled";
+    }
+    if (!pending.login.isActive) {
+      // 链接放太久失效了（或登录命令意外退出）：重新发起，原问题保留。
+      await this.startAuth(rt, input, pending.originalPrompt, pending.images, turn);
+      return "handled";
+    }
+    if (!looksLikeAuthCode(text)) {
+      turn.emit({
+        kind: "text",
+        delta:
+          "我还在等授权码：在指纹浏览器里打开上面的链接并登录后，把页面上的 Authentication code 整段复制，作为一条消息发给我。不想授权了就发「取消授权」。",
+      });
+      return "handled";
+    }
+    const outcome = await pending.login.submitCode(text);
+    if (outcome.ok) {
+      rt.pendingAuth = undefined;
+      rt.resumePrompt = {
+        prompt: pending.originalPrompt,
+        ...(pending.images?.length ? { images: pending.images } : {}),
+      };
+      this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 授权成功`);
+      turn.emit({ kind: "text", delta: "授权成功，接着处理你刚才的问题。\n\n" });
+      return "continue";
+    }
+    this.log(`[acp-engine] 会话 ${rt.zcodeSessionId} 授权失败`);
+    turn.emit({
+      kind: "text",
+      delta: `授权没有成功（${outcome.reason ?? "授权码不对或已经过期"}）。我重新给你一条链接：\n\n`,
+    });
+    await this.startAuth(rt, input, pending.originalPrompt, pending.images, turn);
+    return "handled";
   }
 
   /** 切思考强度：`default` 或未指定不发请求；智能体不支持（没有 effort 配置项）时只提示一次，不影响回合。 */
@@ -434,6 +546,8 @@ class AcpEngineImpl implements AcpEngine {
     const rt = this.sessions.get(zcodeSessionId);
     if (!rt) return;
     rt.turn?.cancelPendingPermissions();
+    await rt.pendingAuth?.login.cancel();
+    rt.pendingAuth = undefined;
     await this.dropConnection(rt);
     if (!rt.busy) this.sessions.delete(zcodeSessionId);
   }
