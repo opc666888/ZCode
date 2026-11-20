@@ -109,12 +109,38 @@ export function completeAcpSelection<T extends { providerId: string; options?: R
 }
 
 /**
+ * 把选择里的模型换成这个 Provider 现在真有的：
+ *   - 模型还在清单里：不动；
+ *   - 是旧写法（发给智能体的原值，如 default / opus）：换成对应的显示名；
+ *   - 都对不上（清单随版本变了）：退到清单第一个（默认）。
+ * 这样改用带版本号的显示名之后，以前存下的任务和草稿不会因为「模型不存在」打不开。
+ */
+export function normalizeAcpSelection<
+  T extends { providerId: string; modelId?: string; options?: Record<string, unknown> },
+>(selection: T, providers: readonly Provider[], agents: readonly AcpBridgeAgentConfig[] = []): T {
+  const agentId = acpAgentIdOf(selection.providerId);
+  if (agentId === undefined) return selection;
+  const completed = completeAcpSelection(selection);
+  const provider = providers.find((candidate) => candidate.providerId === selection.providerId);
+  if (!provider || provider.models.length === 0) return completed;
+  const modelIds = provider.models.map((model) => model.modelId as string);
+  if (completed.modelId !== undefined && modelIds.includes(completed.modelId)) return completed;
+  const values = (agents.find((agent) => agent.id === agentId) as { modelValues?: Record<string, string> } | undefined)
+    ?.modelValues;
+  const byValue = values
+    ? modelIds.find((label) => values[label] === completed.modelId)
+    : undefined;
+  return { ...completed, modelId: byValue ?? modelIds[0] };
+}
+
+/**
  * 在进程 Registry 之上叠加 ACP Provider：基础 Registry 的变化照常透传，ACP 条目只读。
  * 同名冲突时以基础 Registry 为准（ACP id 带 `acp:` 前缀，正常不会冲突）。
  */
 export function withAcpProviders(
   base: ProviderRegistryModelSource,
   providers: readonly Provider[],
+  agents: readonly AcpBridgeAgentConfig[] = [],
 ): ProviderRegistryModelSource {
   if (providers.length === 0) return base;
   const acp = new ProviderRegistry(providers);
@@ -137,7 +163,7 @@ export function withAcpProviders(
     validateSelection: (selection) =>
       isAcp(selection.providerId)
         ? // UI 不展示 ACP 思考档位；缺省时补唯一取值，避免 reasoning-level-missing。
-          acp.validateSelection(completeAcpSelection(selection))
+          acp.validateSelection(normalizeAcpSelection(selection, providers, agents))
         : base.validateSelection(selection),
     onDidChange: (listener) => base.onDidChange(listener),
   };

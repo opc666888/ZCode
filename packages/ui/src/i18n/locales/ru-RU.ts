@@ -6438,6 +6438,7 @@ const ruRU: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.high": "Высокий",
   "chat.toolbar.thoughtLevel.value.xhigh": "Очень высокий",
   "chat.toolbar.thoughtLevel.value.max": "Максимальный",
+  "chat.toolbar.thoughtLevel.value.default": "По умолчанию",
   "chat.toolbar.thoughtLevel.value.ultra": "Ультра",
   "chat.longRunning.expand": "Развернуть панель долгих задач",
   "chat.longRunning.collapse": "Свернуть панель долгих задач",

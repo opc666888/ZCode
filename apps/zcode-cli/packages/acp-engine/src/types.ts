@@ -9,6 +9,8 @@ export interface AcpAgentConfig {
   args?: string[];
   env?: Record<string, string>;
   models?: string[];
+  /** 模型显示名 → 发给智能体的值（models 用的是带版本号的显示名时提供，见 models.ts）。 */
+  modelValues?: Record<string, string>;
 }
 
 export type EngineEvent =

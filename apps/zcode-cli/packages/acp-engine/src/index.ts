@@ -15,3 +15,4 @@ export {
   type AcpAgentsConfigReadResult,
   type BuiltinAgentProbe,
 } from "./config.js";
+export { FALLBACK_CLAUDE_MODELS, modelCachePath, presentModels, type AgentModelOption } from "./models.js";

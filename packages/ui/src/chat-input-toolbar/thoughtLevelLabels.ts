@@ -12,6 +12,8 @@ const THOUGHT_LEVEL_LABEL_IDS: Record<string, string> = {
   enabled: "chat.toolbar.thoughtLevel.value.on",
   on: "chat.toolbar.thoughtLevel.value.on",
   true: "chat.toolbar.thoughtLevel.value.on",
+  // acp-bridge: 外部智能体（Claude Code）的「用它自己的设置」档
+  default: "chat.toolbar.thoughtLevel.value.default",
   low: "chat.toolbar.thoughtLevel.value.low",
   minimal: "chat.toolbar.thoughtLevel.value.minimal",
   medium: "chat.toolbar.thoughtLevel.value.medium",

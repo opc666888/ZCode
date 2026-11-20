@@ -11,7 +11,7 @@ import {
   ACP_REASONING_LEVEL,
   acpAgentIdOf,
   buildAcpProviders,
-  completeAcpSelection,
+  normalizeAcpSelection,
   withAcpProviders,
 } from "./acp-providers.js";
 import type {
@@ -35,7 +35,7 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
     runTurn: async (input, host) => {
       const agent = agentOf(input.selection);
       if (!agent) throw new Error(`ACP agent not configured: ${input.selection.providerId}`);
-      const modelId = input.selection.modelId;
+      const modelId = normalizeAcpSelection(input.selection, providers, agents).modelId;
       const level = (input.selection as { options?: { reasoningLevel?: unknown } }).options?.reasoningLevel;
       const effort = typeof level === "string" ? level : undefined;
       return options.engine.runTurn(
@@ -55,11 +55,11 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
   };
   return {
     agents,
-    wrapProviderRegistry: (registry) => withAcpProviders(registry, providers),
+    wrapProviderRegistry: (registry) => withAcpProviders(registry, providers, agents),
     externalTurnEngine,
     // 根因（W3 冒烟）：草稿默认选择 `acp:<id>/default` 不带 options，Registry 视图校验时补了档位，
     // 但 ApiProviderModelRuntime 直接读 target.selection.options.reasoningLevel → TypeError。
     wrapModelFactory: (factory) => (input) =>
-      factory({ ...input, selection: completeAcpSelection(input.selection) }),
+      factory({ ...input, selection: normalizeAcpSelection(input.selection, providers, agents) }),
   };
 }

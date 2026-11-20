@@ -1,3 +1,5 @@
+import { isAcpBridgeProviderId } from "./acp-bridge/acp-bridge-providers.js";
+import { ACP_BRIDGE_REASONING_LEVEL } from "./acp-bridge/contract.js";
 import {
   validateModelSelectionOptions,
   type ModelSelection,
@@ -62,7 +64,13 @@ export function completeNewModelSelection(
   const model = registry.providers
     .find((provider) => provider.providerId === selection.providerId)
     ?.models.find((candidate) => candidate.modelId === selection.modelId);
-  const reasoningLevel = model?.config.optionSpecs.reasoningLevel.values.at(-1);
+  const values = model?.config.optionSpecs.reasoningLevel.values;
+  // acp-bridge: 外部智能体（Claude Code）的档位里有 "default" = 用它自己的设置；新选择默认用它，
+  // 不能按「最高档」替用户把思考强度拉满（白白多耗额度）。其他 Provider 没有这一档，行为不变。
+  const reasoningLevel =
+    isAcpBridgeProviderId(selection.providerId) && values?.includes(ACP_BRIDGE_REASONING_LEVEL)
+      ? ACP_BRIDGE_REASONING_LEVEL
+      : values?.at(-1);
   if (!reasoningLevel) return undefined;
   return {
     providerId: selection.providerId,

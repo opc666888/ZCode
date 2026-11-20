@@ -163,9 +163,39 @@ describe("内置默认 Claude Code（装上就能用）", () => {
         command: "/app/node",
         args: [dataEntry(base)],
         env: { ELECTRON_RUN_AS_NODE: "1" },
-        models: ["default", "opus", "sonnet", "haiku"],
+        models: ["默认（Sonnet 5.5）", "Opus 5.5", "Fable 5.2", "Sonnet 5.5", "Haiku 5.5", "Fable 5.1"],
+        modelValues: {
+          "默认（Sonnet 5.5）": "default",
+          "Opus 5.5": "opus",
+          "Fable 5.2": "claude-fable-5-2",
+          "Sonnet 5.5": "sonnet",
+          "Haiku 5.5": "haiku",
+          "Fable 5.1": "fable",
+        },
       },
     ]);
+  });
+
+  it("有缓存时用智能体上次报的模型清单（内置的和用户没写 models 的都用）；用户写了 models 就按用户的", async () => {
+    const cacheDir = join(base, ".zcode", "acp-bridge");
+    await mkdir(cacheDir, { recursive: true });
+    const options = [
+      { value: "default", name: "Default (recommended)", description: "Opus 6" },
+      { value: "opus", name: "Opus 6" },
+    ];
+    await writeFile(join(cacheDir, "models-claude.json"), JSON.stringify({ version: 1, options }));
+    await writeFile(join(cacheDir, "models-mine.json"), JSON.stringify({ version: 1, options }));
+    const builtin = readAcpAgentsConfig(base, probe([dataEntry(base)])).agents[0];
+    expect(builtin?.models).toEqual(["默认（Opus 6）", "Opus 6"]);
+    expect(builtin?.modelValues).toEqual({ "默认（Opus 6）": "default", "Opus 6": "opus" });
+    await writeFile(
+      acpAgentsConfigPath(base),
+      JSON.stringify({ agents: [{ id: "mine", command: "/x" }, { id: "fixed", command: "/y", models: ["a"] }] }),
+    );
+    const [mine, fixed] = readAcpAgentsConfig(base, probe([])).agents;
+    expect(mine?.models).toEqual(["默认（Opus 6）", "Opus 6"]);
+    expect(fixed?.models).toEqual(["a"]);
+    expect(fixed?.modelValues).toBeUndefined();
   });
 
   it("ZCODE_ACP_AGENT_HOME 把内置智能体的 HOME 指回真实家目录（宿主隔离 HOME 时钥匙串才找得到登录）", () => {

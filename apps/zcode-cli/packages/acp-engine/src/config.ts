@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { FALLBACK_CLAUDE_MODELS, presentModels, readModelCache } from "./models.js";
 import type { AcpAgentConfig } from "./types.js";
 
 export interface AcpAgentsConfigReadResult {
@@ -28,8 +29,6 @@ export interface AcpAgentsConfigReadResult {
 export const BUILTIN_CLAUDE_AGENT_ID = "claude";
 /** 让安装包或用户指定适配器入口（claude-agent-acp 的 dist/index.js）。 */
 export const BUILTIN_CLAUDE_ENTRY_ENV = "ZCODE_ACP_CLAUDE_ENTRY";
-/** 默认在模型选择器里列出的模型；`default` = 用 Claude Code 自己的默认模型。 */
-export const BUILTIN_CLAUDE_MODELS = ["default", "opus", "sonnet", "haiku"] as const;
 
 const CLAUDE_ACP_PACKAGE_ENTRY = [
   "node_modules",
@@ -118,8 +117,20 @@ export function builtinClaudeAgent(
         ? { HOME: (probe.env ?? process.env).ZCODE_ACP_AGENT_HOME!.trim() }
         : {}),
     },
-    models: [...BUILTIN_CLAUDE_MODELS],
+    // 模型清单用适配器上次报的（带版本号）；第一次还没有缓存时用内置清单。
+    ...presentModels(
+      ((cached) => (cached.length > 0 ? cached : FALLBACK_CLAUDE_MODELS))(
+        readModelCache(dataBaseDir, BUILTIN_CLAUDE_AGENT_ID),
+      ),
+    ),
   };
+}
+
+/** 用户自己配的智能体没写 models 时，同样用它上次报的模型清单（有缓存才用）。 */
+function withCachedModels(dataBaseDir: string, agent: AcpAgentConfig): AcpAgentConfig {
+  if (agent.models) return agent;
+  const cached = readModelCache(dataBaseDir, agent.id);
+  return cached.length > 0 ? { ...agent, ...presentModels(cached) } : agent;
 }
 
 /** 智能体 id 会拼进 provider id `acp:<id>`，只允许安全字符。 */
@@ -237,7 +248,8 @@ export function readAcpAgentsConfig(
 ): AcpAgentsConfigReadResult {
   const path = acpAgentsConfigPath(dataBaseDir);
   const withBuiltin = (result: AcpAgentsConfigReadResult): AcpAgentsConfigReadResult => {
-    if (result.agents.length > 0) return result;
+    if (result.agents.length > 0)
+      return { ...result, agents: result.agents.map((agent) => withCachedModels(dataBaseDir, agent)) };
     const builtin = builtinClaudeAgent(dataBaseDir, probe);
     return builtin ? { ...result, agents: [builtin], builtin: true } : result;
   };

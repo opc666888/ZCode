@@ -38,6 +38,7 @@ import {
   isCancelAuthText,
   looksLikeAuthCode,
 } from "./auth.js";
+import { modelOptionsFromConfigOptions, writeModelCache } from "./models.js";
 
 export const DEFAULT_CANCEL_TIMEOUT_MS = 5000;
 
@@ -134,6 +135,7 @@ class AcpEngineImpl implements AcpEngine {
   private readonly store: SessionStore;
   private readonly log: (msg: string) => void;
   private readonly cancelTimeoutMs: number;
+  private readonly stateDir: string;
   private readonly createAuthLogin: (agent: AcpAgentConfig) => AuthLogin;
   private disposed = false;
 
@@ -142,6 +144,7 @@ class AcpEngineImpl implements AcpEngine {
     this.store = new SessionStore(opts.stateDir, this.log);
     this.cancelTimeoutMs = opts.cancelTimeoutMs ?? DEFAULT_CANCEL_TIMEOUT_MS;
     this.createAuthLogin = opts.createAuthLogin ?? ((agent) => new AuthLogin(agent));
+    this.stateDir = opts.stateDir;
   }
 
   private runtimeFor(zcodeSessionId: string): SessionRuntime {
@@ -206,7 +209,7 @@ class AcpEngineImpl implements AcpEngine {
     let proc: AgentProcess;
     try {
       proc = await this.ensureConnection(rt, input, turn);
-      await this.applyModel(rt, proc, input.modelId, turn);
+      await this.applyModel(rt, proc, input.modelId, turn, input);
       await this.applyEffort(rt, proc, input.effort, turn);
     } catch (error) {
       await turn.drain();
@@ -349,6 +352,12 @@ class AcpEngineImpl implements AcpEngine {
         );
         if (typeof created?.sessionId !== "string")
           throw new Error("ACP 智能体 session/new 没有返回 sessionId");
+        // 记下智能体报的模型清单（带版本号），下次启动时模型选择器按它显示。
+        writeModelCache(
+          this.stateDir,
+          input.agent.id,
+          modelOptionsFromConfigOptions((created as { configOptions?: unknown }).configOptions),
+        );
         rt.acpSessionId = created.sessionId;
         await this.store.set(input.zcodeSessionId, input.agent.id, created.sessionId);
       }
@@ -466,15 +475,18 @@ class AcpEngineImpl implements AcpEngine {
     proc: AgentProcess,
     modelId: string | undefined,
     turn: ActiveTurn,
+    input: TurnInput,
   ): Promise<void> {
-    if (!modelId || modelId === "default" || modelId === rt.appliedModel) return;
+    // 界面上的模型 id 可能是带版本号的显示名，先换成发给智能体的值。
+    const value = modelId ? (input.agent.modelValues?.[modelId] ?? modelId) : undefined;
+    if (!value || value === "default" || value === rt.appliedModel) return;
     try {
       await proc.request(
         "session/set_config_option",
-        { sessionId: rt.acpSessionId, configId: "model", value: modelId },
+        { sessionId: rt.acpSessionId, configId: "model", value },
         turn.signal,
       );
-      rt.appliedModel = modelId;
+      rt.appliedModel = value;
     } catch (error) {
       if (error instanceof AbortedError || error instanceof AgentExitedError) throw error;
       this.log(`[acp-engine] 切换模型 ${modelId} 失败：${errorMessage(error)}`);
