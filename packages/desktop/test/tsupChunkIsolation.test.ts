@@ -131,6 +131,7 @@ describe("desktop tsup chunk isolation", () => {
   it("正式安装包 Agent OTLP 配置应映射为 Main 使用的标准环境字段", () => {
     expect(
       resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_PRIVACY_MODE: "0",
         ZCODE_ENV: "production",
         ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT: "https://arms.example.com/otlp",
         ZCODE_PACKAGED_AGENT_OTEL_HEADERS: "x-arms-license-key=write-only",
@@ -147,12 +148,14 @@ describe("desktop tsup chunk isolation", () => {
   it("正式安装包 Agent OTLP 配置不完整或生产环境使用 HTTP 时应阻止构建", () => {
     expect(() =>
       resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_PRIVACY_MODE: "0",
         ZCODE_ENV: "production",
         ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT: "https://arms.example.com/otlp",
       }),
     ).toThrow("must be configured together");
     expect(() =>
       resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_PRIVACY_MODE: "0",
         ZCODE_ENV: "production",
         ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT: "http://arms.example.com/otlp",
         ZCODE_PACKAGED_AGENT_OTEL_HEADERS: "x-arms-license-key=write-only",
@@ -161,19 +164,35 @@ describe("desktop tsup chunk isolation", () => {
   });
 
   it("release/current 与 Tag 构建缺少 Agent OTLP 配置时应失败，普通开发构建保持 Noop", () => {
-    expect(resolveBuildPackagedAgentTelemetryEnv({})).toEqual({});
+    expect(resolveBuildPackagedAgentTelemetryEnv({ ZCODE_PRIVACY_MODE: "0" })).toEqual({});
     expect(() =>
       resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_PRIVACY_MODE: "0",
         CI: "true",
         CI_COMMIT_BRANCH: "release/current",
       }),
     ).toThrow("required for release builds");
     expect(() =>
       resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_PRIVACY_MODE: "0",
         CI: "true",
         CI_COMMIT_TAG: "v3.6.0",
       }),
     ).toThrow("required for release builds");
+  });
+
+  it("acp-bridge 隐私模式（默认开启）不注入 Agent OTLP，发布构建也不要求配置", () => {
+    expect(resolveBuildPackagedAgentTelemetryEnv({})).toEqual({});
+    expect(resolveBuildPackagedAgentTelemetryEnv({ CI: "true", CI_COMMIT_TAG: "v3.6.0" })).toEqual(
+      {},
+    );
+    expect(
+      resolveBuildPackagedAgentTelemetryEnv({
+        ZCODE_ENV: "production",
+        ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT: "https://arms.example.com/otlp",
+        ZCODE_PACKAGED_AGENT_OTEL_HEADERS: "x-arms-license-key=write-only",
+      }),
+    ).toEqual({});
   });
 
   it("安装包身份与后端环境作为两个编译期常量注入每个 bundle", () => {
@@ -182,7 +201,7 @@ describe("desktop tsup chunk isolation", () => {
       const defines = getDefines(entry);
       expect(defines).toHaveProperty("__ZCODE_ENV__");
       expect(defines).toHaveProperty("__ZCODE_PRODUCT_FLAVOR__");
-      expect(["\"production\"", "\"preview\""]).toContain(defines.__ZCODE_PRODUCT_FLAVOR__);
+      expect(['"production"', '"preview"']).toContain(defines.__ZCODE_PRODUCT_FLAVOR__);
     }
   });
 

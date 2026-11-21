@@ -1408,17 +1408,23 @@ export function SubagentsSection({
   const pluginInventoryWorkspacePath = targetWorkspacePath;
   const chatModelSelectGroups = useMemo(() => {
     if (!modelSelectionView) return [];
-    return buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, modelSelectionView, {
-      startPlanBadgeLabel: intl.formatMessage({
-        id: "settings.modelProvider.connectionMode.startPlanBadge",
-      }),
-      apiKeyLabel: intl.formatMessage({
-        id: "settings.modelProvider.apiKey",
-      }),
-      codingPlanLabel: intl.formatMessage({
-        id: "settings.modelProvider.connectionMode.codingPlan",
-      }),
-    });
+    return buildRegistryModelSelectGroups(
+      ZCODE_AGENT_PROVIDER,
+      modelSelectionView,
+      {
+        startPlanBadgeLabel: intl.formatMessage({
+          id: "settings.modelProvider.connectionMode.startPlanBadge",
+        }),
+        apiKeyLabel: intl.formatMessage({
+          id: "settings.modelProvider.apiKey",
+        }),
+        codingPlanLabel: intl.formatMessage({
+          id: "settings.modelProvider.connectionMode.codingPlan",
+        }),
+      },
+      // acp-bridge: ZCode 子智能体由 GLM 运行时自己请求模型，不能选 ACP 智能体。
+      { excludeAcpBridge: true },
+    );
   }, [intl, modelSelectionView]);
   const subagentModelSelectGroups = chatModelSelectGroups;
   const loadAgents = useCallback(

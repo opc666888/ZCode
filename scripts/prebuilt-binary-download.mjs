@@ -26,6 +26,8 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const PROXY_DOWNLOAD_HOSTS = new Set(["github.com", "githubusercontent.com"]);
 
 export function shouldUsePrebuiltDownloadProxy(rawUrl) {
+  // 构建机本身只能经代理出网时（例如所有境外地址都走本机代理），显式打开这个开关；默认行为不变
+  if (process.env.ZCODE_PREBUILT_DOWNLOAD_PROXY_ALL === "1") return true;
   const hostname = new URL(rawUrl).hostname.toLowerCase();
   return PROXY_DOWNLOAD_HOSTS.has(hostname) || hostname.endsWith(".githubusercontent.com");
 }

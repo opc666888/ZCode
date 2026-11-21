@@ -11,9 +11,10 @@ const { copyGenUiRuntimeAssets } = await import(
 const { loadBuiltinProviderConfig } = await import(
   pathToFileURL(resolve(import.meta.dirname, "../../scripts/builtin-provider-config.mjs")).href
 );
-const { resolveBuildTimeConfig, createBuildTimeConfigDefines } = await import(
-  pathToFileURL(resolve(import.meta.dirname, "../../scripts/build-time-config.mjs")).href
-);
+const { resolveBuildTimeConfig, createBuildTimeConfigDefines, resolveBuildPrivacyMode } =
+  await import(
+    pathToFileURL(resolve(import.meta.dirname, "../../scripts/build-time-config.mjs")).href
+  );
 // 构建期可选能力（ARMS、事件上报、自动更新），见 docs/desktop/build-time-optional-capabilities.md
 const buildTimeConfigDefines = createBuildTimeConfigDefines(
   await resolveBuildTimeConfig(process.env),
@@ -100,6 +101,9 @@ export function resolveBuildRemoteCdnReleaseRoots(runtimeEnv: Record<string, str
 export function resolveBuildPackagedAgentTelemetryEnv(
   runtimeEnv: Record<string, string | undefined>,
 ): Record<string, string> {
+  // acp-bridge(privacy): 隐私模式构建不注入 Agent OTLP（含发布构建的必填校验），Agent 不出网上报。
+  // OTLP 变量若被显式注入，resolveBuildTimeConfig 的隐私断言已让构建失败。
+  if (resolveBuildPrivacyMode(runtimeEnv)) return {};
   const endpoint = runtimeEnv.ZCODE_PACKAGED_AGENT_OTEL_ENDPOINT?.trim();
   const headers = runtimeEnv.ZCODE_PACKAGED_AGENT_OTEL_HEADERS?.trim();
   const serviceName =
@@ -197,6 +201,7 @@ function createSharedDefines() {
     __ZCODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
     __ZCODE_ENV__: JSON.stringify(zcodeEnv),
     __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
+      __ZCODE_C360__: JSON.stringify(process.env.ZCODE_C360_IDENTITY?.trim() === "1"),
     ...buildTimeConfigDefines,
     // Computer Use Helper build identity — helperInstaller 读它决定下载哪个 Helper bundle。
     // 缺失时 installer 抛 "Packaged ZCode is missing its embedded Computer Use Helper build identity"。

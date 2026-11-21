@@ -26,6 +26,7 @@
     "lint:fix": "oxlint --write src"
   },
   "dependencies": {
+    "@zcode/acp-engine": "workspace:*",
     "@zcode/adapters": "workspace:*",
     "@zcode/contracts": "workspace:*",
     "@zcode/core": "workspace:*",

@@ -227,6 +227,7 @@ export default defineConfig(({ command, mode }) => {
       __ZCODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
       __ZCODE_ENV__: JSON.stringify(zcodeEnv),
       __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
+      __ZCODE_C360__: JSON.stringify(process.env.ZCODE_C360_IDENTITY?.trim() === "1"),
       ...buildTimeConfigDefines,
       __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__: JSON.stringify(mode !== "production"),
       "import.meta.env.VITE_ZCODE_BASE_URL": JSON.stringify(zcodeEndpointOrigin),

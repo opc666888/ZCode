@@ -18,6 +18,7 @@ import {
 import armsRum from "@arms/rum-electron";
 import { createArmsUserIdentitySync } from "./armsUserIdentity.js";
 import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import {
   createDesktopContextPromptRollout,
   createElectronDesktopContextPromptConfigFetcher,
@@ -54,6 +55,7 @@ import {
 import { randomUUID } from "node:crypto";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, hostname } from "node:os";
 import {
@@ -2242,6 +2244,12 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
   }
 });
 
+// Claude 360 Code：安装包自带 Claude Code ACP 适配器；用户没另外指定时，告诉 Agent 用这份（acp-engine resolveBuiltinClaudeEntry）
+if (app.isPackaged && !process.env.ZCODE_ACP_CLAUDE_ENTRY?.trim()) {
+  const bundledClaudeAcp = join(process.resourcesPath, "acp-claude", "pkg", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js");
+  if (existsSync(bundledClaudeAcp)) process.env.ZCODE_ACP_CLAUDE_ENTRY = bundledClaudeAcp;
+}
+
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
   installRequestSecurityDiagnostics(session.defaultSession.webRequest, logger);
@@ -2723,8 +2731,12 @@ app.whenReady().then(async () => {
   // 是面向打包发布客户端的安全门，对未打包 dev 运行时无意义。打包版 app.isPackaged === true，
   // gate 照常生效，对真实用户零影响。
   const skipForceUpdateForLocalDevRuntime = !app.isPackaged;
+  // acp-bridge(privacy): 强制更新检查受自动更新开关与隐私模式约束；未启用自动更新的构建不联网查最低版本。
   const forceUpdateGuardResult =
-    ZCODE_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
+    ZCODE_PRODUCT_FLAVOR === "production" &&
+    !skipForceUpdateForLocalDevRuntime &&
+    ZCODE_AUTO_UPDATE_ENABLED &&
+    !isPrivacyMode()
       ? await maybeBlockStartupForForceUpdate({
           resolveZcodeJwtToken: () => autoUpdateCredentialService.load("zcodejwttoken"),
           locale: currentApplicationLocale,

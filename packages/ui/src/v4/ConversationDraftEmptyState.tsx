@@ -6,6 +6,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import darkEmptyStateLogoUrl from "@/assets/Z.svg";
+import { ZCODE_C360 } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -209,6 +210,7 @@ export function ConversationDraftEmptyState({
 }
 
 function ZCodeEmptyStateLogo({ className }: { className?: string }) {
+  if (ZCODE_C360) return null; // Claude 360 Code：首页不放 ZCode 的大 Z 底纹
   return (
     <>
       {/* 修复原因：夜间资源已自带渐变和透明度，公共容器叠加遮罩会让它重复变淡；渐隐效果只属于浅色线框。 */}

@@ -133,6 +133,8 @@ import {
 import { createRuntimeAiSdkModelExecutionConfig } from "../model-config.js";
 import { withOfficialCommandEnv } from "../official-command-endpoint/index.js";
 import { ApiProviderModelRuntime } from "./provider-registry-model-runtime.js";
+// acp-bridge: 外部 ACP 智能体（docs/acp-bridge/DESIGN.md §5）。
+import { loadProcessAcpBridge } from "../acp-bridge/index.js";
 import {
   completeAppStartup,
   debugRuntimeConfigResolved,
@@ -218,6 +220,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     ...traceContextToLogContext(traceContext),
     module: "bootstrap",
   });
+  // acp-bridge: acp-agents.json 中的智能体合成 `acp:<id>` Provider 并接管其回合；无配置时 undefined，零影响。
+  const acpBridge =
+    options.acpBridge === null
+      ? undefined
+      : (options.acpBridge ?? loadProcessAcpBridge(options.env ?? process.env, logger));
+  if (acpBridge) {
+    options = { ...options, providerRegistry: acpBridge.wrapProviderRegistry(options.providerRegistry) };
+  }
   const startupTimer = new StartupTimer(
     logger,
     {
@@ -792,7 +802,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // model factory 提前到三条 workflow child 装配线之前构造：script workflow bridge、dwf actor
     // runtime 与 expert workflow facade 都**共享**父会话这一份 factory——Registry 视图更新后
     // 新建的 Model 才看得到，child 不各自冻结一份。
-    const modelFactory = providerModelRuntime.modelFactory;
+    // acp-bridge: ACP 选择补齐唯一思考档位后再建占位 Model（Factory 只接受完整执行选择）。
+    const modelFactory = acpBridge
+      ? acpBridge.wrapModelFactory(providerModelRuntime.modelFactory)
+      : providerModelRuntime.modelFactory;
     const scriptWorkflowFacade = createScriptWorkflowBridge({
       agentTelemetry: modelTelemetry.agentExecution,
       appOptions: options,
@@ -1033,6 +1046,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),
       sessionStore,
       sessionMailboxPort,
+      ...(acpBridge ? { externalTurnEngine: acpBridge.externalTurnEngine } : {}), // acp-bridge
       logger,
       executionPort,
       workspaceHookAdmission: workspaceHookRuntimeSecurity?.admission,

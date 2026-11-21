@@ -6458,6 +6458,7 @@ const jaJP: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.high": "高",
   "chat.toolbar.thoughtLevel.value.xhigh": "超高",
   "chat.toolbar.thoughtLevel.value.max": "最大",
+  "chat.toolbar.thoughtLevel.value.default": "デフォルト",
   "chat.toolbar.thoughtLevel.value.ultra": "ウルトラ",
   "chat.longRunning.expand": "長時間実行パネルを展開",
   "chat.longRunning.collapse": "長時間実行パネルを折りたたむ",

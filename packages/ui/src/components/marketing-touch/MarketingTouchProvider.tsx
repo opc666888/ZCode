@@ -21,6 +21,7 @@ import {
   waitForMarketingCapability,
 } from "@/lib/marketingNavigation.js";
 import { BUILTIN_MODEL_PROVIDER_IDS, toZhOrEnLocale, ZCODE_ENV } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import { useServices } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
@@ -93,6 +94,8 @@ export function MarketingTouchProvider({
     // 以前这时就创建 runtime 发 marketing/touch，X-Client-Language 会带错语言。等语言确定后再启动；
     // locale 变化本来就会重建 runtime，所以这里只多等一次设置读取。
     if (!service || restoring || !localeResolved) return null;
+    // acp-bridge(privacy): 隐私模式不创建营销 runtime（不起轮询、不渲染弹窗/Banner），与服务缺失同路径。
+    if (isPrivacyMode()) return null;
     let poller: ReturnType<typeof createMarketingTouchPoller>;
     const controller = createMarketingTouchController({
       query: () => service.query({ locale }),

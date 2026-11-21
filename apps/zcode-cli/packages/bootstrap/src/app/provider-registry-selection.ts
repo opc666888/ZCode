@@ -193,7 +193,11 @@ function toModelOption(provider: Provider, model: ProviderModel): ZCodeModelOpti
     maxOutputTokens: optionSpecs.maxOutputTokens.max,
     reasoning: {
       levels: reasoning.values.map((level) => ({ value: level, label: level })),
-      defaultLevel: reasoning.values.at(-1),
+      // acp-bridge: 外部智能体的档位里有 "default"（用它自己的设置），默认用它而不是最高档。
+      defaultLevel:
+        provider.providerId.startsWith("acp:") && reasoning.values.includes("default")
+          ? "default"
+          : reasoning.values.at(-1),
     },
     properties: {
       inputFormat: properties.inputFormat,

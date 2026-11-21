@@ -1,3 +1,4 @@
+import { ZCODE_C360 } from "@zcode/shared";
 import type { ReactNode } from "react";
 import { cn } from "@/components/lib/utils.js";
 
@@ -43,10 +44,15 @@ export function ZCodeStartupLogoBadge({
       )}
     >
       {/* Button 会给 SVG 默认尺寸；紧凑 Logo 显式恢复自动高度，保持标志原始比例。 */}
-      <ZCodeStartupLogo
+      {ZCODE_C360 ? (
+        // Claude 360 Code 标志：暖橙代码符号（和安装包图标同一个图形）
+        <svg viewBox="0 0 1024 1024" aria-hidden="true" className={size === "titlebar" ? "w-3.25" : "w-14"} fill="none" stroke="#C96442" strokeWidth="56" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M392 352 252 512l140 160M632 352l140 160-140 160M560 312l-96 400" />
+        </svg>
+      ) : <ZCodeStartupLogo
         className={size === "titlebar" ? "size-auto w-3.25" : "h-auto w-14"}
         animated={animated}
-      />
+      />}
     </div>
   );
 }

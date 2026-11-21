@@ -1,3 +1,5 @@
+// acp-bridge: ACP 智能体 Provider 合成与识别（Host 注入 Registry、UI 分组/准入共用）。
+export * from "./acp-bridge/index.js";
 export * from "./account-provider-resolution.js";
 export * from "./account-provider-service.js";
 export * from "./account-provider-state.js";

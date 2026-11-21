@@ -6306,6 +6306,7 @@ const koKR: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.high": "높음",
   "chat.toolbar.thoughtLevel.value.xhigh": "매우 높음",
   "chat.toolbar.thoughtLevel.value.max": "최대",
+  "chat.toolbar.thoughtLevel.value.default": "기본",
   "chat.toolbar.thoughtLevel.value.ultra": "울트라",
   "chat.longRunning.expand": "장기 실행 패널 펼치기",
   "chat.longRunning.collapse": "장기 실행 패널 접기",

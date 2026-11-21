@@ -10,6 +10,22 @@ export interface ProviderAvailabilityLoginEntryGuardResult {
   shouldOpenLoginEntry: boolean;
 }
 
+/**
+ * 启动登录入口判定（纯函数，守卫与测试共用）。
+ * 未选区域或「未登录且无可用模型」时打开登录/区域选择页。
+ * acp-bridge: 已配置可用 ACP 智能体时不强制进入「登录 Z.AI」/区域选择——ACP 会话不需要
+ * Z.AI 账号或区域；用户仍可从设置手动登录。
+ */
+export function resolveShouldOpenProviderLoginEntry(params: {
+  providerFamilyDomain: string | null | undefined;
+  hasUser: boolean;
+  hasUsableProvider: boolean;
+  hasUsableAcpBridgeProvider: boolean;
+}): boolean {
+  if (params.hasUsableAcpBridgeProvider) return false;
+  return !params.providerFamilyDomain || (!params.hasUser && !params.hasUsableProvider);
+}
+
 export function useProviderAvailabilityLoginEntryGuard({
   enabled = true,
   user,
@@ -53,8 +69,13 @@ export function useProviderAvailabilityLoginEntryGuard({
         ? await readModelSelectionView()
         : modelSelectionView;
       const availability = resolveProviderAvailabilityState({ modelSelectionView: refreshedView });
-      const { hasUsableProvider, providerCount } = availability;
-      const shouldOpenLoginEntry = !providerFamilyDomain || (!user && !hasUsableProvider);
+      const { hasUsableProvider, hasUsableAcpBridgeProvider, providerCount } = availability;
+      const shouldOpenLoginEntry = resolveShouldOpenProviderLoginEntry({
+        providerFamilyDomain,
+        hasUser: Boolean(user),
+        hasUsableProvider,
+        hasUsableAcpBridgeProvider,
+      });
 
       // 未登录且没有可用模型配置时必须引导用户连接账号或填写 API Key。
       // 启动检查、API Key 设置回流等入口统一走这里，避免各处复制判断后语义分叉。
@@ -63,6 +84,7 @@ export function useProviderAvailabilityLoginEntryGuard({
         source: availability.source,
         providerCount,
         hasUsableProvider,
+        hasUsableAcpBridgeProvider,
         hasUser: Boolean(user),
         hasProviderFamilyDomain: Boolean(providerFamilyDomain),
         shouldOpenLoginEntry,

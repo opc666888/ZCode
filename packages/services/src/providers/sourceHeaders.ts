@@ -8,6 +8,7 @@ import {
   ZCODE_SOURCE_HEADERS,
   ZCODE_VERSION,
 } from "@zcode/shared";
+import { isPrivacyMode } from "@zcode/shared/privacy-mode";
 import { getAppConfigDir } from "../paths.js";
 
 export { ZCODE_SOURCE_HEADERS };
@@ -20,6 +21,8 @@ interface ZCodeSourceHeaderOptions {
   osVersion?: string;
   platform?: NodeJS.Platform;
   releaseChannel?: string;
+  /** 请求已携带 z.ai 登录凭据。隐私模式下仅此时才发送 X-Device-Mid（服务端按设备绑定登录态）。 */
+  loggedIn?: boolean;
 }
 
 let cachedDeviceMid: { stateFile: string; value: string } | null = null;
@@ -74,7 +77,8 @@ export function buildZCodeSourceHeaders(
   const clientTimezone =
     normalizePrintableHeaderValue(options.clientTimezone) ?? resolveClientTimezone();
   const osVersion = normalizePrintableHeaderValue(options.osVersion ?? readOsVersion());
-  const deviceMid = readExistingDeviceMid();
+  // acp-bridge(privacy): 隐私模式下未登录 z.ai 不发送设备 ID。
+  const deviceMid = isPrivacyMode() && !options.loggedIn ? undefined : readExistingDeviceMid();
 
   return buildZCodeSourceHeadersFromContext({
     appVersion,

@@ -5,12 +5,15 @@ import {
 import {
   ProviderRegistryService,
   ProviderSettingsFacade,
+  buildAcpBridgeProviders,
   createFailClosedAccountProviderConfigSnapshot,
   type AccountProviderConfigSnapshot,
+  type Provider,
   type ProviderConfigSnapshot,
   type ProviderSettingsMutationTarget,
   type ProviderSource,
 } from "@zcode/provider";
+import { readAcpAgentsConfig } from "@zcode/acp-engine";
 import {
   createProviderConfigRuntime,
   type ProviderConfigRuntime,
@@ -25,6 +28,7 @@ import {
   type ProviderSettingsConnectivityTester,
 } from "./providerFacadeServices.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
+import { getDataBaseDir } from "#src/paths.js";
 
 const log = createServiceLogger("provider-runtime");
 
@@ -40,6 +44,11 @@ export interface ProviderRuntimeDependencies {
   readonly testConnectivity?: ProviderSettingsConnectivityTester;
   readonly modelSelectionConfiguredDefaultSource?: ModelSelectionConfiguredDefaultSource;
   readonly disposeModelSelectionConfiguredDefaultSource?: () => void;
+  /**
+   * acp-bridge: 进程内合成、只进 Registry 的 ACP Provider（`acp:<id>`）。
+   * 缺省时由 createProviderRuntimeFromConfigRuntime 从 `<dataBaseDir>/.zcode/acp-agents.json` 读取。
+   */
+  readonly extraRegistryProviders?: readonly Provider[];
 }
 
 interface RefreshableProviderSource<TSnapshot> extends ProviderSource<TSnapshot> {
@@ -96,6 +105,10 @@ export class ProviderRuntime {
     this.registryService = new ProviderRegistryService({
       configSource: this.configService,
       accountSource,
+      // acp-bridge: 无 ACP 配置时为空数组，Registry 行为与改动前一致。
+      ...(dependencies.extraRegistryProviders?.length
+        ? { extraRegistryProviders: dependencies.extraRegistryProviders }
+        : {}),
     });
     const mutations = createSettingsMutationTarget(
       this.#configRuntime,
@@ -220,5 +233,38 @@ export function createProviderRuntime(options: ProviderRuntimeOptions): Provider
 export function createProviderRuntimeFromConfigRuntime(
   dependencies: ProviderRuntimeDependencies,
 ): ProviderRuntime {
-  return new ProviderRuntime(dependencies);
+  return new ProviderRuntime({
+    ...dependencies,
+    // acp-bridge: 未显式注入时读用户 ACP 配置；Host 与 CLI 读同一份文件、合成同一份 Provider。
+    extraRegistryProviders: dependencies.extraRegistryProviders ?? loadAcpBridgeRegistryProviders(),
+  });
+}
+
+/**
+ * acp-bridge: 读 `<dataBaseDir>/.zcode/acp-agents.json`，合成与 CLI 逐字段相同的 `acp:<id>` Provider。
+ * dataBaseDir 与 CLI `resolveZCodeDataBaseDir` 同规则（ZCODE_DATA_BASE_DIR 优先，空值回落 homedir），
+ * Host 侧以 getDataBaseDir() 为准（它还承接 setDataBaseDir 覆盖，并把同一目录传给 CLI 子进程）。
+ * 文件不存在/为空/坏掉时返回 []，本功能完全不出现；配置只在 Host 启动时读一次（与 acp-engine
+ * 同步契约一致，文件很小），改配置后需重启。日志只写字段名与序号，不写 env 的值。
+ */
+export function loadAcpBridgeRegistryProviders(
+  dataBaseDir: string = getDataBaseDir(),
+): readonly Provider[] {
+  try {
+    const config = readAcpAgentsConfig(dataBaseDir);
+    if (config.errors.length > 0) {
+      log.warn(undefined, "ACP agents config has invalid entries", { errors: config.errors });
+    }
+    if (config.agents.length === 0) return [];
+    log.info(undefined, "ACP agents loaded into provider registry", {
+      agentIds: config.agents.map((agent) => agent.id),
+    });
+    return buildAcpBridgeProviders(config.agents);
+  } catch (error) {
+    // 配置坏了只关闭本功能，不能拖垮 Provider Runtime 启动。
+    log.warn(undefined, "ACP agents config could not be loaded", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 }
