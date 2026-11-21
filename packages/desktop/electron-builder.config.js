@@ -819,6 +819,8 @@ export default {
     }
   },
   extraResources: [
+    // Claude 360 Code：随包的 Claude Code ACP 适配器（scripts/prepare-acp-claude.mjs）
+    ...(process.env.ZCODE_C360_IDENTITY?.trim() === "1" ? [{ from: "bundled-acp-claude", to: "acp-claude", filter: ["**/*"] }] : []),
     ...(targetPlatform.os === "win32"
       ? [
           {

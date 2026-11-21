@@ -92,6 +92,39 @@ export function resolveBuiltinClaudeEntry(
 }
 
 /**
+ * 电脑上已装的 Claude Code 可执行文件（官方安装器的固定位置）。
+ * Claude 360 Code 随包的适配器不带 claude-agent-sdk 的平台程序（单平台 200MB+），
+ * 用 CLAUDE_CODE_EXECUTABLE 指向这里；用户自己设了 CLAUDE_CODE_EXECUTABLE 就不动。
+ */
+export function resolveInstalledClaudeExecutable(probe: BuiltinAgentProbe = {}): string | undefined {
+  const env = probe.env ?? process.env;
+  if (env.CLAUDE_CODE_EXECUTABLE?.trim()) return undefined;
+  const platform = probe.platform ?? process.platform;
+  const exists = probe.exists ?? existsSync;
+  let home = probe.home;
+  if (home === undefined) {
+    try {
+      home = homedir();
+    } catch {
+      home = "";
+    }
+  }
+  const realHome = env.ZCODE_ACP_AGENT_HOME?.trim() || home;
+  if (!realHome) return undefined;
+  const candidates =
+    platform === "win32"
+      ? [join(realHome, ".local", "bin", "claude.exe"), join(env.APPDATA?.trim() || join(realHome, "AppData", "Roaming"), "npm", "claude.cmd")]
+      : [join(realHome, ".local", "bin", "claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"];
+  return candidates.find((c) => {
+    try {
+      return exists(c);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
  * 内置默认智能体：用当前运行时（Node 或以 Node 模式运行的 Electron）直接跑适配器，
  * 账号用 Claude Code 默认的配置目录（~/.claude）。找不到适配器返回 undefined。
  */
@@ -113,6 +146,7 @@ export function builtinClaudeAgent(
     // Claude Code 的登录凭据在系统钥匙串里，钥匙串位置跟 HOME 走，HOME 不对就会报「需要授权」。
     env: {
       ELECTRON_RUN_AS_NODE: "1",
+      ...((exe): Record<string, string> => (exe ? { CLAUDE_CODE_EXECUTABLE: exe } : {}))(resolveInstalledClaudeExecutable(probe)),
       ...((probe.env ?? process.env).ZCODE_ACP_AGENT_HOME?.trim()
         ? { HOME: (probe.env ?? process.env).ZCODE_ACP_AGENT_HOME!.trim() }
         : {}),

@@ -78,3 +78,4 @@ __pycache__/
 
 # CR-01：afterPack 生成的 NSIS helper define，按架构命名，不得入库
 packages/desktop/build/generated/
+packages/desktop/bundled-acp-claude/

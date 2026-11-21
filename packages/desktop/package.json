@@ -57,7 +57,8 @@
     "lint:fix": "oxlint --fix",
     "test:agent-crash-diagnostic": "tsx --test test/agent-crash-diagnostic.node.test.ts",
     "test:privacy-mode": "tsx --test test/privacy-mode.node.test.ts",
-    "test:e2e:retention": "tsx --test test/e2e/conversation-session/runtime/manual-review/pending/conversation-session-snapshot-retention.test.ts"
+    "test:e2e:retention": "tsx --test test/e2e/conversation-session/runtime/manual-review/pending/conversation-session-snapshot-retention.test.ts",
+    "prepare:acp-claude": "node scripts/prepare-acp-claude.mjs"
   },
   "dependencies": {
     "@arms/rum-electron": "^0.0.3",

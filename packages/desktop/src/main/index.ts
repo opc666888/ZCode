@@ -55,6 +55,7 @@ import {
 import { randomUUID } from "node:crypto";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, hostname } from "node:os";
 import {
@@ -2242,6 +2243,12 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
     win.focus();
   }
 });
+
+// Claude 360 Code：安装包自带 Claude Code ACP 适配器；用户没另外指定时，告诉 Agent 用这份（acp-engine resolveBuiltinClaudeEntry）
+if (app.isPackaged && !process.env.ZCODE_ACP_CLAUDE_ENTRY?.trim()) {
+  const bundledClaudeAcp = join(process.resourcesPath, "acp-claude", "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js");
+  if (existsSync(bundledClaudeAcp)) process.env.ZCODE_ACP_CLAUDE_ENTRY = bundledClaudeAcp;
+}
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();

@@ -213,3 +213,21 @@ describe("内置默认 Claude Code（装上就能用）", () => {
     expect(readAcpAgentsConfig(base, probe([dataEntry(base)], { ZCODE_ACP_BUILTIN: "0" })).agents).toEqual([]);
   });
 });
+
+describe("resolveInstalledClaudeExecutable（Claude 360 Code 用已装的 Claude Code）", () => {
+  it("Windows 官方安装位置", async () => {
+    const { resolveInstalledClaudeExecutable } = await import("../src/config.js");
+    const home = "C:\\Users\\admin";
+    const want = join(home, ".local", "bin", "claude.exe");
+    expect(resolveInstalledClaudeExecutable({ platform: "win32", home, env: {}, exists: (p) => p === want })).toBe(want);
+  });
+  it("用户自己设了 CLAUDE_CODE_EXECUTABLE 就不管", async () => {
+    const { resolveInstalledClaudeExecutable } = await import("../src/config.js");
+    expect(resolveInstalledClaudeExecutable({ platform: "darwin", home: "/Users/x", env: { CLAUDE_CODE_EXECUTABLE: "/x/claude" }, exists: () => true })).toBeUndefined();
+  });
+  it("内置智能体带上它", async () => {
+    const { builtinClaudeAgent } = await import("../src/config.js");
+    const agent = builtinClaudeAgent("/d", { platform: "darwin", home: "/Users/x", env: {}, execPath: "/e", exists: (p) => p.endsWith("index.js") || p === "/Users/x/.local/bin/claude" });
+    expect(agent?.env?.CLAUDE_CODE_EXECUTABLE).toBe("/Users/x/.local/bin/claude");
+  });
+});
