@@ -23,9 +23,26 @@ const PREVIEW_IDENTITY = Object.freeze({
   cuaHelperInstallVariant: "preview",
 });
 
+/**
+ * Claude 360 Code（opentools 发行版，owner 2026-11-21）：`ZCODE_C360_IDENTITY=1` 时使用。
+ * 运行行为沿用 preview（不接 ZCode 官方自动更新、独立 app id 和 Electron 数据目录），只换名字和系统身份。
+ */
+const C360_IDENTITY = Object.freeze({
+  flavor: "preview",
+  appId: "site.opentools.c360code",
+  productName: "Claude 360 Code",
+  linuxExecutableName: "claude-360-code",
+  linuxPackageName: "claude-360-code",
+  cuaHelperInstallVariant: "preview",
+});
+
+export const ZCODE_C360_IDENTITY_ENV = "ZCODE_C360_IDENTITY";
+export const isC360IdentityRequested = (env = process.env) => env[ZCODE_C360_IDENTITY_ENV]?.trim() === "1";
+
 export const desktopProductIdentities = Object.freeze({
   production: PRODUCTION_IDENTITY,
   preview: PREVIEW_IDENTITY,
+  c360: C360_IDENTITY,
 });
 
 function normalizeDesktopZCodeEnv(env) {
@@ -57,13 +74,14 @@ export function isPreviewIdentityRequested(env = process.env) {
  * 未知 `ZCODE_ENV` 继续按 test 处理，和共享层 normalizeZCodeEnv 的 fail-safe 默认值一致。
  */
 export function resolveDesktopProductFlavor(env = process.env) {
-  if (isPreviewIdentityRequested(env)) {
+  if (isC360IdentityRequested(env) || isPreviewIdentityRequested(env)) {
     return "preview";
   }
   return normalizeDesktopZCodeEnv(env) === "production" ? "production" : "preview";
 }
 
 export function resolveDesktopProductIdentity(env = process.env) {
+  if (isC360IdentityRequested(env)) return C360_IDENTITY;
   return desktopProductIdentities[resolveDesktopProductFlavor(env)];
 }
 
@@ -72,6 +90,7 @@ export function resolveDesktopProductIdentity(env = process.env) {
  * 生产后端的 Preview 包靠 productName（`ZCode Preview-<version>-...`）与正式包区分。
  */
 export function resolveDesktopArtifactSuffix(env = process.env) {
+  if (isC360IdentityRequested(env)) return "";
   return normalizeDesktopZCodeEnv(env) === "test" ? "_TEST" : "";
 }
 
@@ -86,6 +105,7 @@ export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPack
   if (runtime.isPackaged === false) {
     return "cn.aminer.zcode";
   }
+  if (isC360IdentityRequested()) return C360_IDENTITY.appId;
   return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
 }
 

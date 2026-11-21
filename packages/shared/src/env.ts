@@ -8,6 +8,7 @@ export type ArmsRumEnv = "local" | "prod";
 // 非构建环境（如 e2e 测试的 mocha）下 define 不存在，用 typeof 检查 + fallback 避免 ReferenceError
 declare const __ZCODE_ENV__: string;
 declare const __ZCODE_PRODUCT_FLAVOR__: string;
+declare const __ZCODE_C360__: boolean;
 declare const __ZCODE_ARMS_RUM_ENDPOINT__: string;
 declare const __ZCODE_TELEMETRY_REPORT_ENDPOINT__: string;
 declare const __ZCODE_AUTO_UPDATE_ENABLED__: boolean;
@@ -40,6 +41,8 @@ export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
   typeof __ZCODE_PRODUCT_FLAVOR__ !== "undefined" ? __ZCODE_PRODUCT_FLAVOR__ : undefined,
   ZCODE_ENV,
 );
+/** Claude 360 Code 发行版（构建时 ZCODE_C360_IDENTITY=1）：不弹 Z.AI 登录屏，打开直接进入，用户在里面用 Claude 账号。 */
+export const ZCODE_C360: boolean = typeof __ZCODE_C360__ !== "undefined" ? __ZCODE_C360__ === true : false;
 export const ZCODE_APP_VERSION_ENV = "ZCODE_APP_VERSION" as const;
 export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 /**

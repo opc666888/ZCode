@@ -1,3 +1,4 @@
+import { ZCODE_C360 } from "@zcode/shared";
 interface RootStartupGateState {
   isResolvingStartupAuthState: boolean;
   isResolvingProviderStartupState: boolean;
@@ -52,6 +53,8 @@ export function shouldEnableProviderAvailabilityLoginEntryGuard(
 ): boolean {
   // 修复原因：手机 Web 远控只 attachment 到桌面已有 host，不能用本地空 provider
   // 快照触发登录页，否则断连/home-only 首页会被 WelcomeScreen 覆盖。
+  // Claude 360 Code：不要求登录 Z.AI，打开直接进入（用户在里面用 Claude 账号）
+  if (ZCODE_C360) return false;
   return !state.isWebRemoteControlRoot;
 }
 
