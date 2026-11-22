@@ -48,6 +48,8 @@ export function applyEarlyDataBaseDirBootstrap(): string | null {
     const base = c360DataBaseDir();
     process.env.ZCODE_DATA_BASE_DIR = base;
     process.env.ZCODE_C360_RUNTIME = "1"; // CLI 子进程按它用 Claude 360 Code 自己的钥匙串条目
+    // owner 11-22：插件市场、自动化模板等照上游正常连智谱，隐私模式默认关（用户自己设 ZCODE_PRIVACY_MODE=1 仍可打开）
+    if (!process.env.ZCODE_PRIVACY_MODE?.trim()) process.env.ZCODE_PRIVACY_MODE = "0";
     setDataBaseDir(base);
     return base;
   }
