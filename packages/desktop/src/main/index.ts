@@ -54,6 +54,7 @@ import {
 } from "electron";
 import { randomUUID } from "node:crypto";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
+import { ensureC360License } from "./c360LicenseGate.js";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -2252,6 +2253,8 @@ if (app.isPackaged && !process.env.ZCODE_ACP_CLAUDE_ENTRY?.trim()) {
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
+  // Claude 360 Code：本机 Claude 360 Manager 没激活就不往下启动（owner 11-22）
+  if (!(await ensureC360License())) return;
   installRequestSecurityDiagnostics(session.defaultSession.webRequest, logger);
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
