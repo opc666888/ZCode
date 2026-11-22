@@ -54,7 +54,7 @@ import {
 } from "electron";
 import { randomUUID } from "node:crypto";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
-import { ensureC360License } from "./c360LicenseGate.js";
+import { ensureC360License } from "./desktopDataBaseDirBootstrap.js";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
