@@ -54,7 +54,11 @@ const debugLog = (...args: unknown[]) => {
 function resolveUserHomeDir() {
   // 独立桌面 Dev 实例已设置自己的 home，设置服务却仍写真实 HOME，
   // 导致启动迁移和外观操作污染其他实例。与 Electron 的显式 home 覆盖保持一致。
+  // Claude 360 Code：设置文件放自己的数据根（~/.claude360code），不和本机官方 ZCode 共用 ~/.zcode/v2/setting.json
+  const c360Base =
+    process.env.ZCODE_C360_RUNTIME === "1" ? process.env.ZCODE_DATA_BASE_DIR?.trim() : undefined;
   const envHome =
+    c360Base ||
     process.env.ZCODE_DESKTOP_HOME_DIR?.trim() ||
     process.env.HOME?.trim() ||
     process.env.USERPROFILE?.trim();

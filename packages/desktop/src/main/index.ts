@@ -2406,7 +2406,9 @@ app.whenReady().then(async () => {
     logger.warn("[embedded-browser-permission] policy bootstrap failed:", error);
   }
 
-  await hydratePendingPostUpdateReleaseNotes(mainSettingService);
+  // 构建期关了自动更新（Claude 360 Code）就不恢复「已下载待安装」：设置里可能是官方 ZCode 留下的新版本，
+  // 点了会把应用换成官方版（owner 11-22 截图：顶栏出现「更新 v3.19.1」）。
+  if (ZCODE_AUTO_UPDATE_ENABLED) await hydratePendingPostUpdateReleaseNotes(mainSettingService);
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
