@@ -7,7 +7,7 @@ interface ChromiumHardwareAccelerationApp {
 }
 
 export function resolveChromiumHardwareAccelerationSettingsFile(
-  homePath: string = homedir(),
+  homePath: string = process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir(),
 ): string {
   return join(homePath, ".zcode", "v2", "setting.json");
 }

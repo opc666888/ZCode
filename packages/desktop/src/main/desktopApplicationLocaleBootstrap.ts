@@ -10,6 +10,7 @@ import type { Locale } from "@zcode/shared";
  */
 function resolveBootstrapHomeDir(): string {
   const envHome =
+    process.env.ZCODE_DATA_BASE_DIR?.trim() ||
     process.env.ZCODE_DESKTOP_HOME_DIR?.trim() ||
     process.env.HOME?.trim() ||
     process.env.USERPROFILE?.trim();

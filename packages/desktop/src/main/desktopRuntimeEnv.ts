@@ -23,6 +23,7 @@ import {
   normalizeDynamicWorkflowMode,
   readZCodeAgentTelemetryEnv,
   sanitizeZCodeRuntimeEnv,
+  ZCODE_C360,
   type SourceServerArtifactPolicy,
   type ZCodeRuntimeEnv,
 } from "@zcode/shared";
@@ -64,7 +65,8 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
 export const runtimeApplicationName =
   readRuntimeEnvOverride("ZCODE_DESKTOP_APPLICATION_NAME") ??
-  (isLocalDevelopmentRuntime ? "ZCode Dev" : isPreviewPackagedRuntime ? "ZCode Preview" : "ZCode");
+  // Claude 360 Code 用自己的应用名（userData、单实例锁都跟着分开），不和本机官方 ZCode / ZCode Preview 共用（owner 11-22：「感觉是启动了我电脑上的 zcode」）
+  (isLocalDevelopmentRuntime ? "ZCode Dev" : ZCODE_C360 ? "Claude 360 Code" : isPreviewPackagedRuntime ? "ZCode Preview" : "ZCode");
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
 // e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
 export const runtimeHomePath = readRuntimeEnvOverride("ZCODE_DESKTOP_HOME_DIR");

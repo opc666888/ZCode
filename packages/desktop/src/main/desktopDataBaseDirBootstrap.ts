@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { setDataBaseDir } from "@zcode/services/node";
+import { ZCODE_C360 } from "@zcode/shared";
 
-export function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
+export function resolveBootstrapSettingsFile(homePath: string = process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir()): string {
   return join(homePath, ".zcode", "v2", "setting.json");
 }
 
@@ -36,7 +37,20 @@ function readBootstrapDataBaseDirFromDisk(
   }
 }
 
+/** Claude 360 Code 的数据根（项目、对话、设置都在它下面的 .zcode 里），和本机官方 ZCode 的 ~/.zcode 分开（owner 11-22）。 */
+export function c360DataBaseDir(homePath: string = homedir()): string {
+  return join(homePath, ".claude360code");
+}
+
 export function applyEarlyDataBaseDirBootstrap(): string | null {
+  if (ZCODE_C360 && !process.env.ZCODE_DATA_BASE_DIR?.trim()) {
+    // 不读官方 ZCode 的 ~/.zcode/v2/setting.json；子进程（CLI）也靠这个环境变量落到同一个数据根
+    const base = c360DataBaseDir();
+    process.env.ZCODE_DATA_BASE_DIR = base;
+    process.env.ZCODE_C360_RUNTIME = "1"; // CLI 子进程按它用 Claude 360 Code 自己的钥匙串条目
+    setDataBaseDir(base);
+    return base;
+  }
   const dataBaseDir = readBootstrapDataBaseDirFromDisk();
   if (dataBaseDir) {
     // 启动早期就把 dataBaseDir 注入进来，避免 logger / crashReporter 先按默认 HOME 建目录，

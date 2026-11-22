@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { homedir, platform, userInfo } from "node:os";
 import { link, lstat, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { CREDENTIAL_DECRYPT_ERROR_CODE, CREDENTIAL_DECRYPT_ERROR_PREFIX } from "@zcode/shared";
+import { CREDENTIAL_DECRYPT_ERROR_CODE, CREDENTIAL_DECRYPT_ERROR_PREFIX, ZCODE_C360 } from "@zcode/shared";
 import { atomicWritePrivateTextFile, withFileLock } from "../node/privateFilePersistence.js";
 import type {
   CredentialCipher,
@@ -18,7 +18,10 @@ const ALGORITHM = "aes-256-gcm";
 const KEY_BYTES = 32;
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
-const SYSTEM_SERVICE = "ZCode Credential Encryption";
+// Claude 360 Code 用自己的钥匙串条目：读官方 ZCode 那条会让 macOS 弹「输入开机密码」（owner 11-22：「一起来就要授权输密码」）
+// 桌面端编译期就知道（ZCODE_C360）；单独打包的 CLI 子进程靠桌面端启动时设的 ZCODE_C360_RUNTIME=1，两边必须用同一条，不然互相解不开
+const systemService = (): string =>
+  ZCODE_C360 || process.env.ZCODE_C360_RUNTIME === "1" ? "Claude 360 Code Credential Encryption" : "ZCode Credential Encryption";
 /** 与凭据文件同目录的来源标记；内容只能是 OS_SOURCE_MARKER，不含密钥。 */
 const CREDENTIAL_SOURCE_FILE = "credential-source";
 const OS_SOURCE_MARKER = "os\n";
@@ -172,7 +175,7 @@ function systemKeyStore(filePath: string): CredentialKeyStore {
     entry ??= import("@napi-rs/keyring")
       .then(
         ({ AsyncEntry }) =>
-          new AsyncEntry(SYSTEM_SERVICE, digest(resolve(filePath)).toString("hex"), {
+          new AsyncEntry(systemService(), digest(resolve(filePath)).toString("hex"), {
             linux: { store: "secret-service" },
           }),
       )
