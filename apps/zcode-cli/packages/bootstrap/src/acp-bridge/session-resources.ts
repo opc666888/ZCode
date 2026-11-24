@@ -16,9 +16,19 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, sy
 import { basename, join } from "node:path";
 import type { AcpMcpServer, AcpSessionResources } from "@zcode/acp-engine";
 import type { McpServerConfig, PluginMetadata, SkillRoot } from "@zcode/contracts";
+import { NODE_REPL_PROXY_CONTEXT_ENV, NODE_REPL_PROXY_TARGET_ENV, ensureNodeReplProxyScript } from "./node-repl-meta-proxy.js";
 
 /** 只对 ZCode 自身有意义、对 Claude 会话没用的插件。 */
 const SKIP_PLUGIN_NAMES = new Set(["zcode-guide", "restore-legacy-sessions", "zcode-site"]);
+
+/**
+ * 电脑操作：本仓（开源 ZCode）的 zcode-cua 是占位包，node_repl 里调电脑操作只会回
+ * 「Computer Use is not available in this build」，所以它的技能不交给 Claude（交了只会让 Claude 去调占位实现）。
+ * Claude Code 自带的电脑操作（内置 MCP `computer-use`）只在交互式终端会话里接线：SDK / ACP 模式下它不挂，
+ * 名字被保留、外部同名服务不加载，单独拉起 `claude --computer-use-mcp` 也只回「not wired to a session」
+ * （2026-11-24 对 Claude Code 2.1.317 实测）。
+ */
+export const COMPUTER_USE_PLUGIN_NAME = "computer-use";
 const SKIP_MCP_PREFIXES = [...SKIP_PLUGIN_NAMES].map((name) => `plugin:${name}:`);
 
 export interface HostSessionResourcesInput {
@@ -54,6 +64,8 @@ export function convertMcpServers(
   cwd: string,
   untrusted: ReadonlySet<string> = new Set(),
   sessionId?: string,
+  /** node_repl 会话身份中继脚本路径（见 node-repl-meta-proxy.ts）；没有就只靠环境变量兜底。 */
+  nodeReplProxyPath?: string,
 ): AcpMcpServer[] {
   const out: AcpMcpServer[] = [];
   const used = new Set<string>();
@@ -67,18 +79,28 @@ export function convertMcpServers(
     if (config.type === "stdio") {
       const env = { ...config.env };
       if (config.cwd && !env.ZCODE_WORKSPACE_ROOT) env.ZCODE_WORKSPACE_ROOT = expand(config.cwd, cwd);
-      // Claude Code 调 node_repl 时不带 ZCode 的会话身份，宿主经启动环境给它兜底（电脑操作 / 浏览器操作要用）。
-      if (rawName === "node_repl" && sessionId)
-        env[NODE_REPL_FALLBACK_CONTEXT_ENV] = JSON.stringify({
-          session_id: sessionId,
-          workspace_path: cwd,
-          workspace_key: cwd,
-        });
+      let command = expand(config.command, cwd);
+      let args = (config.args ?? []).map((arg) => expand(arg, cwd));
+      // Claude Code 调 node_repl 时不带 ZCode 的会话身份（电脑操作 / 浏览器操作要用）。宿主经启动环境给身份：
+      // 新版宿主直接认 NODE_REPL_FALLBACK_CONTEXT_ENV；官方插件缓存里的旧版宿主不认，再夹一层中继补到每次 tools/call 上。
+      if (rawName === "node_repl" && sessionId) {
+        const context = JSON.stringify({ session_id: sessionId, workspace_path: cwd, workspace_key: cwd });
+        env[NODE_REPL_FALLBACK_CONTEXT_ENV] = context;
+        if (nodeReplProxyPath) {
+          env[NODE_REPL_PROXY_TARGET_ENV] = JSON.stringify({ command, args });
+          env[NODE_REPL_PROXY_CONTEXT_ENV] = context;
+          args = [nodeReplProxyPath];
+          // command 仍是宿主 Node（打包态是 Helper + ELECTRON_RUN_AS_NODE），中继跟宿主同一个运行时。
+        }
+      }
       out.push({
         name,
-        command: expand(config.command, cwd),
-        args: (config.args ?? []).map((arg) => expand(arg, cwd)),
-        env: Object.entries(env).map(([key, value]) => ({ name: key, value: expand(String(value), cwd) })),
+        command,
+        args,
+        env: Object.entries(env).map(([key, value]) => ({
+          name: key,
+          value: key.startsWith("ZCODE_NODE_REPL_") ? String(value) : expand(String(value), cwd),
+        })),
       });
     } else if (!config.oauth) {
       out.push({
@@ -118,11 +140,12 @@ export function materializeClaudePluginShells(
   skillRoots: readonly SkillRoot[],
   stateDir: string,
   log?: (message: string) => void,
+  skipNames: ReadonlySet<string> = new Set(),
 ): string[] {
   const base = join(stateDir, "claude-plugins");
   const dirs: string[] = [];
   for (const plugin of plugins) {
-    if (!plugin.enabled || SKIP_PLUGIN_NAMES.has(plugin.name)) continue;
+    if (!plugin.enabled || SKIP_PLUGIN_NAMES.has(plugin.name) || skipNames.has(plugin.name)) continue;
     const roots = skillRoots.filter((root) => root.pluginId === plugin.id && existsSync(root.path));
     if (roots.length === 0) continue;
     const name = toAcpServerName(plugin.name);
@@ -161,10 +184,25 @@ export function createHostSessionResources(
   input: HostSessionResourcesInput,
   log?: (message: string) => void,
 ): HostSessionResources {
-  const claudePluginDirs = materializeClaudePluginShells(input.plugins, input.skillRoots, input.stateDir, log);
+  const claudePluginDirs = materializeClaudePluginShells(
+    input.plugins,
+    input.skillRoots,
+    input.stateDir,
+    log,
+    // 电脑操作技能不交给 Claude（见 COMPUTER_USE_PLUGIN_NAME 注释）。
+    new Set([COMPUTER_USE_PLUGIN_NAME]),
+  );
+  let nodeReplProxyPath: string | undefined;
+  if (input.mcpServers.node_repl) {
+    try {
+      nodeReplProxyPath = ensureNodeReplProxyScript(input.stateDir);
+    } catch (error) {
+      log?.(`[acp-bridge] node_repl 会话身份中继写入失败：${(error as Error).message}`);
+    }
+  }
   return {
     forCwd: (cwd, sessionId) => ({
-      mcpServers: convertMcpServers(input.mcpServers, cwd, input.untrustedServerNames, sessionId),
+      mcpServers: convertMcpServers(input.mcpServers, cwd, input.untrustedServerNames, sessionId, nodeReplProxyPath),
       claudePluginDirs,
     }),
   };

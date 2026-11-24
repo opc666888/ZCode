@@ -70,8 +70,9 @@ describe("acp-bridge 插件能力交给 Claude", () => {
     expect(readlinkSync(join(dirs[1]!, "skills", "computer-use"))).toBe(single);
     // 重复生成不报错（会话每次建 app 都会调）
     expect(materializeClaudePluginShells(plugins, roots, state)).toEqual(dirs);
+    // 会话里：电脑操作技能不交给 Claude（ZCode 的实现是占位包）。
     const res = createHostSessionResources({ mcpServers: {}, plugins, skillRoots: roots, stateDir: state });
-    expect(res.forCwd("/p")).toEqual({ mcpServers: [], claudePluginDirs: dirs });
+    expect(res.forCwd("/p")).toEqual({ mcpServers: [], claudePluginDirs: [dirs[0]] });
   });
 
   it("node_repl 拿到宿主给的会话身份兜底（电脑操作 / 浏览器操作要用），其他 MCP 不加", () => {
