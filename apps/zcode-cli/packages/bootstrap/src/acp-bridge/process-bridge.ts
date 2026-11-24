@@ -57,5 +57,10 @@ export function loadProcessAcpBridge(
     module: "bootstrap.acp_bridge",
     agentIds: agents.map((agent) => agent.id),
   });
-  return createAcpBridge({ agents, engine: processEngine.engine });
+  return createAcpBridge({
+    agents,
+    engine: processEngine.engine,
+    stateDir,
+    log: (message) => logger?.info("ACP bridge", { event: "acp_bridge.resources", module: "bootstrap.acp_bridge", message }),
+  });
 }

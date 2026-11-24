@@ -455,6 +455,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         ),
       };
     }
+    // acp-bridge: 把已启用插件的 MCP 与技能交给外部 ACP 智能体（Claude 会话也能用插件市场的插件）。
+    acpBridge?.setHostSessionResources({
+      mcpServers: runtimeConfig.mcp?.enabled === false ? {} : (runtimeConfig.mcp?.servers ?? {}),
+      untrustedServerNames: untrustedProjectMcpServers,
+      plugins: pluginOutcome.plugins,
+      skillRoots: pluginOutcome.skillRoots,
+      stateDir: join(cliStorageRoot, "acp-bridge"),
+    });
     startupTimer.mark("ZCode runtime configuration resolved", {
       context: runtimeConfigLogContext(runtimeConfig, workingDirectory),
       event: "bootstrap.app.startup.runtime_config.completed",

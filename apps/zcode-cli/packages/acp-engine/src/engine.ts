@@ -13,6 +13,7 @@
  */
 import type {
   AcpAgentConfig,
+  AcpMcpServer,
   AcpEngine,
   CreateAcpEngineOptions,
   EngineEvent,
@@ -341,7 +342,7 @@ class AcpEngineImpl implements AcpEngine {
         try {
           await proc.request(
             "session/load",
-            { sessionId: mapping.acpSessionId, cwd: input.cwd, mcpServers: [] },
+            { sessionId: mapping.acpSessionId, cwd: input.cwd, ...sessionResourceParams(input) },
             input.signal,
           );
           // 回放的 update 可能还在 SDK 异步链里：让出一个宏任务后再关闭回放过滤。
@@ -359,7 +360,7 @@ class AcpEngineImpl implements AcpEngine {
       if (!rt.acpSessionId) {
         const created = await proc.request<{ sessionId?: unknown }>(
           "session/new",
-          { cwd: input.cwd, mcpServers: [] },
+          { cwd: input.cwd, ...sessionResourceParams(input) },
           input.signal,
         );
         if (typeof created?.sessionId !== "string")
@@ -616,4 +617,24 @@ export function createAcpEngineWithOptions(opts: AcpEngineInternalOptions): AcpE
 /** 契约入口（DESIGN §4.1）。 */
 export function createAcpEngine(opts: CreateAcpEngineOptions): AcpEngine {
   return new AcpEngineImpl(opts);
+}
+
+/**
+ * 会话资源 → ACP 参数：插件 MCP 走标准 mcpServers；插件技能走 claude-agent-acp 的
+ * `_meta.claudeCode.options.plugins`（SDK 映射为 `--plugin-dir-no-mcp`，MCP 不重复启动）。
+ */
+function sessionResourceParams(input: TurnInput): {
+  mcpServers: AcpMcpServer[];
+  _meta?: { claudeCode: { options: { plugins: { type: "local"; path: string; skipMcpDiscovery: true }[] } } };
+} {
+  const res = input.sessionResources;
+  const plugins = (res?.claudePluginDirs ?? []).map((path) => ({
+    type: "local" as const,
+    path,
+    skipMcpDiscovery: true as const,
+  }));
+  return {
+    mcpServers: res?.mcpServers ?? [],
+    ...(plugins.length ? { _meta: { claudeCode: { options: { plugins } } } } : {}),
+  };
 }

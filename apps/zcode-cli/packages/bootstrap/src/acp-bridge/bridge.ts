@@ -20,6 +20,7 @@ import type {
   CreateAcpBridgeOptions,
   ExternalTurnEngineAdapter,
 } from "./contract.js";
+import { createHostSessionResources, type HostSessionResources } from "./session-resources.js";
 
 export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | undefined {
   const agents = options.agents.filter((agent) => agent.id.trim().length > 0);
@@ -30,6 +31,7 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
     const agentId = acpAgentIdOf(selection?.providerId);
     return agentId === undefined ? undefined : agentById.get(agentId);
   };
+  let hostResources: HostSessionResources | undefined;
   const externalTurnEngine: ExternalTurnEngineAdapter = {
     handles: (selection) => agentOf(selection) !== undefined,
     runTurn: async (input, host) => {
@@ -48,6 +50,7 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
           prompt: input.prompt,
           ...(input.images?.length ? { images: input.images } : {}),
           signal: input.signal,
+          ...(hostResources ? { sessionResources: hostResources.forCwd(input.cwd) } : {}),
         },
         host,
       );
@@ -61,5 +64,17 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
     // 但 ApiProviderModelRuntime 直接读 target.selection.options.reasoningLevel → TypeError。
     wrapModelFactory: (factory) => (input) =>
       factory({ ...input, selection: normalizeAcpSelection(input.selection, providers, agents) }),
+    setHostSessionResources: (input) => {
+      try {
+        hostResources = createHostSessionResources(
+          { ...input, stateDir: options.stateDir ?? input.stateDir },
+          options.log,
+        );
+      } catch (error) {
+        // 插件能力交不过去不能拖垮会话：退回不带插件。
+        options.log?.(`[acp-bridge] 插件能力装配失败：${(error as Error).message}`);
+        hostResources = undefined;
+      }
+    },
   };
 }
