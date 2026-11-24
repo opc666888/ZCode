@@ -208,9 +208,8 @@ const BROWSER_CACHE_SUFFIX = join(OFFICIAL_CACHE_ROOT, "browser-use", "0.5.1");
 const ANDROID_CACHE_SUFFIX = join(OFFICIAL_CACHE_ROOT, "android-emulator", "0.1.1");
 const SKILL_CREATOR_CACHE_SUFFIX = join(OFFICIAL_CACHE_ROOT, "skill-creator", "0.1.0");
 const ANDROID_MANIFEST_SUFFIX = join(ANDROID_CACHE_SUFFIX, ".zcode-plugin", "plugin.json");
-const CUA_DEFINITION = OFFICIAL_PLUGIN_DEFINITIONS.find(({ name }) => name === "computer-use");
-if (!CUA_DEFINITION) throw new Error("computer-use official plugin definition is missing");
-const CUA_CACHE_SUFFIX = join(OFFICIAL_CACHE_ROOT, CUA_DEFINITION.name, CUA_DEFINITION.version);
+// Claude 360 Code：computer-use 不上架（开源版是占位包），不再 seed 进官方缓存。
+const CUA_CACHE_DIR_SUFFIX = join(OFFICIAL_CACHE_ROOT, "computer-use");
 
 describe("bundled official plugin cache resilience", () => {
   const cleanups: string[] = [];
@@ -1011,17 +1010,12 @@ describe("bundled official plugin cache resilience", () => {
     ).toEqual([]);
   });
 
-  it("does not mix an old zcode-cua cache with the current consumer contract", async () => {
+  it("does not seed or register computer-use (not listed in Claude 360 Code)", async () => {
     const storageRoot = await createStorageRoot(cleanups);
-    await resolveOfficialPluginRoots({ storageRoot });
-    const currentRoot = join(storageRoot, CUA_CACHE_SUFFIX);
-    const staleRoot = join(dirname(currentRoot), "0.5.9");
-    await rename(currentRoot, staleRoot);
-    faults.promoteTargetSuffix = CUA_CACHE_SUFFIX;
-
     const roots = await resolveOfficialPluginRoots({ storageRoot });
 
-    expect(roots).not.toContain(staleRoot);
+    expect(existsSync(join(storageRoot, CUA_CACHE_DIR_SUFFIX))).toBe(false);
+    expect(roots.some((root) => root.includes(`${sep}computer-use${sep}`))).toBe(false);
   });
 
   it("continues when another process moves the target after the existence check", async () => {

@@ -20,6 +20,7 @@ import {
   resolveOfficialPluginRoots,
 } from "../src/app/bundled-plugins.js";
 import {
+  ALL_OFFICIAL_PLUGIN_DEFINITIONS,
   OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS,
   OFFICIAL_PLUGIN_DEFINITIONS,
 } from "../src/app/official-plugin-definitions.js";
@@ -57,8 +58,9 @@ it("Settings 默认启用集合与 CLI 的官方插件声明一致", () => {
 // 产品决策（2026-09-11）：电脑控制回退为默认关闭，首启不再注入 computer-use 工具集与
 // Helper 依赖。上面那条只保证两处名单同步，不阻止有人重新把 defaultEnabled 标回 true，
 // 所以这里单独把 CUA 的默认态钉住。
-it("computer-use 默认不启用（电脑控制需用户在设置页显式开启）", () => {
-  const cua = OFFICIAL_PLUGIN_DEFINITIONS.find((definition) => definition.name === "computer-use");
+it("computer-use 不上架（Claude 360 Code：开源版电脑控制是占位包），完整清单里仍默认不启用", () => {
+  expect(OFFICIAL_PLUGIN_DEFINITIONS.find((definition) => definition.name === "computer-use")).toBeUndefined();
+  const cua = ALL_OFFICIAL_PLUGIN_DEFINITIONS.find((definition) => definition.name === "computer-use");
   expect(cua).toBeDefined();
   expect(cua?.defaultEnabled ?? false).toBe(false);
   expect(DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has("computer-use@zcode-plugins-official")).toBe(
@@ -345,9 +347,9 @@ describe("ZCode plugins", () => {
           name: "custom-marketplace",
           plugins: [
             {
-              name: "computer-use",
-              displayName: "Custom Computer Use",
-              displayName_i18n: { "zh-CN": "自定义电脑控制" },
+              name: "browser-use",
+              displayName: "Custom Browser Use",
+              displayName_i18n: { "zh-CN": "自定义浏览器操作" },
             },
           ],
         }),
@@ -360,11 +362,11 @@ describe("ZCode plugins", () => {
         workingDirectory: root,
       });
 
-      expect(outcome.pluginListingsById?.["computer-use@zcode-plugins-official"]).toMatchObject({
-        displayName: "Computer Use",
+      expect(outcome.pluginListingsById?.["browser-use@zcode-plugins-official"]).toMatchObject({
+        displayName: "Browser Use",
       });
-      expect(outcome.pluginListingsById?.["computer-use@custom-marketplace"]).toMatchObject({
-        displayName: "Custom Computer Use",
+      expect(outcome.pluginListingsById?.["browser-use@custom-marketplace"]).toMatchObject({
+        displayName: "Custom Browser Use",
       });
     } finally {
       await rm(root, { force: true, recursive: true });
@@ -692,7 +694,7 @@ describe("ZCode plugins", () => {
             id: "zcode-plugins-official",
             isOfficial: true,
             name: "zcode-plugins-official",
-            pluginCount: 16,
+            pluginCount: 15, // computer-use 不上架
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -2639,7 +2641,7 @@ describe("ZCode plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "zcode-plugins-official"),
       ).toMatchObject({
-        pluginCount: 16,
+        pluginCount: 15, // computer-use 不上架
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",

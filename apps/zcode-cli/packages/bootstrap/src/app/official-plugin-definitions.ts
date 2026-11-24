@@ -125,7 +125,7 @@ export const OFFICIAL_DESIGN_REQUIRED_SEED_PATHS = [
   "hooks/design-rules",
 ] as const;
 
-export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
+export const ALL_OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
     // 交互视图默认关闭，避免默认注入固定上下文；旧开关由配置迁移关闭一次。
     defaultEnabled: false,
@@ -529,6 +529,16 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     version: "0.5.0",
   },
 ];
+
+/**
+ * Claude 360 Code（本仓 = 开源 ZCode 的 fork）：电脑控制（computer-use）不上架。
+ * 开源版的 @zcode/zcode-cua 是占位包（Computer Use is not available in this build），智谱模型和 Claude 都用不了；
+ * 上架只会让客户点开后报错。从官方插件清单里拿掉 = 插件市场、设置页、输入框入口都不出现，也不注入 node_repl 的电脑控制半边。
+ * 以后真做了电脑控制再放回来（owner 2026-11-24：「先隐藏」）。
+ */
+export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = ALL_OFFICIAL_PLUGIN_DEFINITIONS.filter(
+  (definition) => definition.name !== OFFICIAL_CUA_PLUGIN_NAME,
+);
 
 // 在 official plugin 定义里标了 defaultEnabled: true 的, 拼成 `<name>@<marketplace>` 形式,
 // 透传给 adapter 让它在用户没显式配置时默认开启 (内容型 plugin 才适用)。

@@ -1,5 +1,5 @@
 import type { RemoteTarget } from "@zcode/shared";
-import { isRemoteWorkspaceIdentity } from "@zcode/shared";
+import { isRemoteWorkspaceIdentity, ZCODE_C360 } from "@zcode/shared";
 
 export type ComputerUseAvailabilityKind =
   | "local-macos"
@@ -25,7 +25,18 @@ export interface ComputerUseAvailabilityInput {
   workspaceIdentity?: string | null;
 }
 
-export function resolveComputerUseAvailability({
+/**
+ * Claude 360 Code：电脑控制不上架（开源版是占位包，插件也已从官方清单拿掉），设置页分区与输入框入口都不显示。
+ */
+export function resolveComputerUseAvailability(
+  input: ComputerUseAvailabilityInput = {},
+  c360: boolean = ZCODE_C360,
+): ComputerUseAvailability {
+  const availability = resolveComputerUseAvailabilityCore(input);
+  return c360 ? { ...availability, supported: false } : availability;
+}
+
+function resolveComputerUseAvailabilityCore({
   isDesktop = false,
   isMacDesktop = false,
   isWindowsDesktop = false,

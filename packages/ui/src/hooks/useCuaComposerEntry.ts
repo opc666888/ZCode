@@ -5,7 +5,7 @@
  * 判定规则本身全部在 lib/cuaComposerEntryState.ts，这里不复制任何一条分支。
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { isRemoteWorkspaceIdentity, ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
+import { isRemoteWorkspaceIdentity, ZCODE_C360, ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -81,7 +81,7 @@ export function useCuaComposerEntry({
   const pluginEnabled = cuaPlugin?.enabled === true;
 
   const pluginManagementService = services.pluginManagementService;
-  const platformSupported = (macLocalDesktop || windowsLocalDesktop) && isLocalWorkspace;
+  const platformSupported = !ZCODE_C360 && (macLocalDesktop || windowsLocalDesktop) && isLocalWorkspace;
   // 插件列表是按钮状态的必要输入。store 是全局单例且 initialize 内部按 workspaceKey 做了
   // in-flight 去重 + 缓存复用，因此与设置页共用同一条初始化路径不会放大 plugins/list 请求。
   const initializedKeyRef = useRef<string | null>(null);
@@ -135,8 +135,9 @@ export function useCuaComposerEntry({
   const view = useMemo(
     () =>
       resolveCuaComposerEntryView({
-        macLocalDesktop: macLocalDesktop && isLocalWorkspace,
-        windowsLocalDesktop: windowsLocalDesktop && isLocalWorkspace,
+        // Claude 360 Code：电脑控制不上架，输入框不放入口。
+        macLocalDesktop: !ZCODE_C360 && macLocalDesktop && isLocalWorkspace,
+        windowsLocalDesktop: !ZCODE_C360 && windowsLocalDesktop && isLocalWorkspace,
         hiddenBySettings,
         permissionServiceAvailable: Boolean(services.cuaPermissionService),
         pluginEnabled,
