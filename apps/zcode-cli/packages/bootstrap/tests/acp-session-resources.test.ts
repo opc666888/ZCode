@@ -73,4 +73,16 @@ describe("acp-bridge 插件能力交给 Claude", () => {
     const res = createHostSessionResources({ mcpServers: {}, plugins, skillRoots: roots, stateDir: state });
     expect(res.forCwd("/p")).toEqual({ mcpServers: [], claudePluginDirs: dirs });
   });
+
+  it("node_repl 拿到宿主给的会话身份兜底（电脑操作 / 浏览器操作要用），其他 MCP 不加", () => {
+    const servers: Record<string, McpServerConfig> = {
+      node_repl: { type: "stdio", command: "/x/Helper", env: { A: "1" } },
+      other: { type: "stdio", command: "/y" },
+    };
+    const out = convertMcpServers(servers, "/proj", new Set(), "sess_1") as { name: string; env: { name: string; value: string }[] }[];
+    const ctx = out[0]!.env.find((e) => e.name === "ZCODE_NODE_REPL_FALLBACK_CONTEXT");
+    expect(JSON.parse(ctx!.value)).toEqual({ session_id: "sess_1", workspace_path: "/proj", workspace_key: "/proj" });
+    expect(out[1]!.env.some((e) => e.name === "ZCODE_NODE_REPL_FALLBACK_CONTEXT")).toBe(false);
+    expect(convertMcpServers(servers, "/proj")[0]).not.toHaveProperty("env.ZCODE_NODE_REPL_FALLBACK_CONTEXT");
+  });
 });

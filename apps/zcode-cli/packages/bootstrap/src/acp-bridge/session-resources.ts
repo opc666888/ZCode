@@ -32,8 +32,11 @@ export interface HostSessionResourcesInput {
 
 /** 已解析的宿主资源；每轮按会话 cwd 展开占位符。 */
 export interface HostSessionResources {
-  forCwd(cwd: string): AcpSessionResources;
+  forCwd(cwd: string, sessionId?: string): AcpSessionResources;
 }
+
+/** node_repl（电脑操作 / 浏览器操作宿主）认的兜底会话身份环境变量，见 node-repl-host server.ts。 */
+export const NODE_REPL_FALLBACK_CONTEXT_ENV = "ZCODE_NODE_REPL_FALLBACK_CONTEXT";
 
 export function toAcpServerName(name: string): string {
   return name.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) || "mcp";
@@ -50,6 +53,7 @@ export function convertMcpServers(
   servers: Record<string, McpServerConfig>,
   cwd: string,
   untrusted: ReadonlySet<string> = new Set(),
+  sessionId?: string,
 ): AcpMcpServer[] {
   const out: AcpMcpServer[] = [];
   const used = new Set<string>();
@@ -63,6 +67,13 @@ export function convertMcpServers(
     if (config.type === "stdio") {
       const env = { ...config.env };
       if (config.cwd && !env.ZCODE_WORKSPACE_ROOT) env.ZCODE_WORKSPACE_ROOT = expand(config.cwd, cwd);
+      // Claude Code 调 node_repl 时不带 ZCode 的会话身份，宿主经启动环境给它兜底（电脑操作 / 浏览器操作要用）。
+      if (rawName === "node_repl" && sessionId)
+        env[NODE_REPL_FALLBACK_CONTEXT_ENV] = JSON.stringify({
+          session_id: sessionId,
+          workspace_path: cwd,
+          workspace_key: cwd,
+        });
       out.push({
         name,
         command: expand(config.command, cwd),
@@ -152,8 +163,8 @@ export function createHostSessionResources(
 ): HostSessionResources {
   const claudePluginDirs = materializeClaudePluginShells(input.plugins, input.skillRoots, input.stateDir, log);
   return {
-    forCwd: (cwd) => ({
-      mcpServers: convertMcpServers(input.mcpServers, cwd, input.untrustedServerNames),
+    forCwd: (cwd, sessionId) => ({
+      mcpServers: convertMcpServers(input.mcpServers, cwd, input.untrustedServerNames, sessionId),
       claudePluginDirs,
     }),
   };

@@ -50,7 +50,7 @@ export function createAcpBridge(options: CreateAcpBridgeOptions): AcpBridge | un
           prompt: input.prompt,
           ...(input.images?.length ? { images: input.images } : {}),
           signal: input.signal,
-          ...(hostResources ? { sessionResources: hostResources.forCwd(input.cwd) } : {}),
+          ...(hostResources ? { sessionResources: hostResources.forCwd(input.cwd, input.sessionId) } : {}),
         },
         host,
       );

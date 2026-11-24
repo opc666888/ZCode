@@ -382,7 +382,30 @@ function buildRequestMeta(meta: Record<string, unknown> | undefined): NodeReplRe
   const parsed = requestContextSchema.safeParse(meta?.["com.zcode/request-context"]);
   // 安全边界：顶层 MCP _meta 是第三方可扩展字段，不能成为 ZCode session 路由凭据。
   // 只有 host client 写入的命名空间会进入 Browser bridge；旧 client 的普通 JS 仍可执行。
+  if (parsed.success && parsed.data.session_id) return parsed.data;
+  // acp-bridge: 外部 ACP 智能体（Claude Code）的 MCP client 不写 ZCode 命名空间。宿主拉起本进程时
+  // 把会话身份放在启动环境变量里（只有宿主能设，模型改不了），这里作为兜底，电脑操作 / 浏览器操作才能用。
+  const fallback = readFallbackRequestContext();
+  if (fallback) return { ...fallback, ...(parsed.success ? parsed.data : {}), session_id: fallback.session_id };
   return parsed.success ? parsed.data : {};
+}
+
+export const NODE_REPL_FALLBACK_CONTEXT_ENV = "ZCODE_NODE_REPL_FALLBACK_CONTEXT";
+let fallbackContext: NodeReplRequestMeta | null | undefined;
+function readFallbackRequestContext(): NodeReplRequestMeta | undefined {
+  if (fallbackContext === undefined) {
+    fallbackContext = null;
+    const raw = process.env[NODE_REPL_FALLBACK_CONTEXT_ENV];
+    if (raw) {
+      try {
+        const parsed = requestContextSchema.safeParse(JSON.parse(raw));
+        if (parsed.success && parsed.data.session_id) fallbackContext = parsed.data;
+      } catch {
+        /* 坏值当没有 */
+      }
+    }
+  }
+  return fallbackContext ?? undefined;
 }
 
 function requestSessionKey(meta: NodeReplRequestMeta): string {
