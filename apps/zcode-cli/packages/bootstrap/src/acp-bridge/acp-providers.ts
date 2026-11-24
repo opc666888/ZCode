@@ -18,6 +18,7 @@ import {
   type Provider,
   type ProviderId,
 } from "@zcode/provider";
+import { ACP_DEFAULT_MODEL_LABEL, isLegacyDefaultModelLabel } from "@zcode/acp-engine";
 import type { ProviderRegistryModelSource } from "../app/provider-registry-model-runtime.js";
 import type { AcpBridgeAgentConfig } from "./contract.js";
 
@@ -127,9 +128,11 @@ export function normalizeAcpSelection<
   if (completed.modelId !== undefined && modelIds.includes(completed.modelId)) return completed;
   const values = (agents.find((agent) => agent.id === agentId) as { modelValues?: Record<string, string> } | undefined)
     ?.modelValues;
-  const byValue = values
-    ? modelIds.find((label) => values[label] === completed.modelId)
-    : undefined;
+  const byValue =
+    (isLegacyDefaultModelLabel(completed.modelId) && modelIds.includes(ACP_DEFAULT_MODEL_LABEL)
+      ? ACP_DEFAULT_MODEL_LABEL
+      : undefined) ??
+    (values ? modelIds.find((label) => values[label] === completed.modelId) : undefined);
   return { ...completed, modelId: byValue ?? modelIds[0] };
 }
 

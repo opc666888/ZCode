@@ -1,4 +1,5 @@
 import { OFF_PEAK_EXECUTION_TOOL_DENYLIST } from "@zcode/shared";
+import { ACP_DEFAULT_MODEL_LABEL, isLegacyDefaultModelLabel } from "@zcode/acp-engine";
 // 原生 prompt turn 运行器。
 //
 // Core admission 只负责接受输入并建立 session-scoped reservation；本文件不再拥有
@@ -40,10 +41,21 @@ export function isModelSelectionAvailable(
   selection: Pick<ModelSelection, "providerId" | "modelId"> | undefined,
   availableModels: readonly Pick<ModelSelection, "providerId" | "modelId">[],
 ): boolean {
-  return (
-    selection !== undefined &&
+  if (selection === undefined) return false;
+  if (
     availableModels.some(
       (model) => model.providerId === selection.providerId && model.modelId === selection.modelId,
+    )
+  )
+    return true;
+  // acp-bridge: 旧版本「默认」模型名随账号变（默认（Sonnet 5.5）/ 默认（Opus）），沿用旧选择的任务
+  // 照常放行；Core 建模与回合执行会经 normalizeAcpSelection 换成现在的「默认（推荐）」。
+  return (
+    selection.providerId.startsWith("acp:") &&
+    isLegacyDefaultModelLabel(selection.modelId) &&
+    availableModels.some(
+      (model) =>
+        model.providerId === selection.providerId && model.modelId === ACP_DEFAULT_MODEL_LABEL,
     )
   );
 }

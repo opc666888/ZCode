@@ -163,9 +163,9 @@ describe("内置默认 Claude Code（装上就能用）", () => {
         command: "/app/node",
         args: [dataEntry(base)],
         env: { ELECTRON_RUN_AS_NODE: "1" },
-        models: ["默认（Sonnet 5.5）", "Opus 5.5", "Fable 5.2", "Sonnet 5.5", "Haiku 5.5", "Fable 5.1"],
+        models: ["默认（推荐）", "Opus 5.5", "Fable 5.2", "Sonnet 5.5", "Haiku 5.5", "Fable 5.1"],
         modelValues: {
-          "默认（Sonnet 5.5）": "default",
+          "默认（推荐）": "default",
           "Opus 5.5": "opus",
           "Fable 5.2": "claude-fable-5-2",
           "Sonnet 5.5": "sonnet",
@@ -186,14 +186,14 @@ describe("内置默认 Claude Code（装上就能用）", () => {
     await writeFile(join(cacheDir, "models-claude.json"), JSON.stringify({ version: 1, options }));
     await writeFile(join(cacheDir, "models-mine.json"), JSON.stringify({ version: 1, options }));
     const builtin = readAcpAgentsConfig(base, probe([dataEntry(base)])).agents[0];
-    expect(builtin?.models).toEqual(["默认（Opus 6）", "Opus 6"]);
-    expect(builtin?.modelValues).toEqual({ "默认（Opus 6）": "default", "Opus 6": "opus" });
+    expect(builtin?.models).toEqual(["默认（推荐）", "Opus 6"]);
+    expect(builtin?.modelValues).toEqual({ "默认（推荐）": "default", "Opus 6": "opus" });
     await writeFile(
       acpAgentsConfigPath(base),
       JSON.stringify({ agents: [{ id: "mine", command: "/x" }, { id: "fixed", command: "/y", models: ["a"] }] }),
     );
     const [mine, fixed] = readAcpAgentsConfig(base, probe([])).agents;
-    expect(mine?.models).toEqual(["默认（Opus 6）", "Opus 6"]);
+    expect(mine?.models).toEqual(["默认（推荐）", "Opus 6"]);
     expect(fixed?.models).toEqual(["a"]);
     expect(fixed?.modelValues).toBeUndefined();
   });

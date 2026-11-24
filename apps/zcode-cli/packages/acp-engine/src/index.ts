@@ -16,6 +16,8 @@ export {
   type BuiltinAgentProbe,
 } from "./config.js";
 export {
+  ACP_DEFAULT_MODEL_LABEL,
+  isLegacyDefaultModelLabel,
   FALLBACK_CLAUDE_MODELS,
   modelCachePath,
   presentModels,

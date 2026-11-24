@@ -64,9 +64,17 @@ export function modelOptionsFromConfigOptions(configOptions: unknown): AgentMode
 }
 
 /**
- * 显示名：`default` 显示成「默认（Sonnet 5.5）」这样说清楚实际模型；其余用智能体给的名字。
+ * 显示名：`default` 固定显示「默认（推荐）」（它也是模型 id，不能随账号变）；其余用智能体给的名字。
  * 返回界面用的模型列表和「显示名 → 发给智能体的值」对照表（显示名重复时后者加上原值区分）。
  */
+/** 默认模型的固定显示名（也是 ACP Provider 里的模型 id）。 */
+export const ACP_DEFAULT_MODEL_LABEL = "默认（推荐）";
+const ACP_DEFAULT_MODEL_LABEL_VALUE = "default";
+/** 旧版本存下的默认模型名（「默认」「默认（Opus）」「默认（Sonnet 5.5）」……）都认作现在的默认。 */
+export function isLegacyDefaultModelLabel(modelId: string | undefined): boolean {
+  return typeof modelId === "string" && /^默认(（.*）)?$/.test(modelId);
+}
+
 export function presentModels(options: readonly AgentModelOption[]): {
   models: string[];
   modelValues: Record<string, string>;
@@ -74,12 +82,9 @@ export function presentModels(options: readonly AgentModelOption[]): {
   const models: string[] = [];
   const modelValues: Record<string, string> = {};
   for (const option of options) {
-    let label =
-      option.value === "default"
-        ? option.description && !/^default/i.test(option.description)
-          ? `默认（${option.description}）`
-          : "默认"
-        : option.name;
+    // 「默认」的显示名必须固定：它同时是模型 id，账号登录前后适配器给的实际模型不同
+    // （内置清单 Sonnet、登录后 Opus），名字跟着变会让沿用旧选择的新任务「发送失败」（11-24 实测）。
+    let label = option.value === ACP_DEFAULT_MODEL_LABEL_VALUE ? ACP_DEFAULT_MODEL_LABEL : option.name;
     if (label in modelValues) label = `${label}（${option.value}）`;
     if (label in modelValues) continue;
     models.push(label);
