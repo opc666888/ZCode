@@ -32,6 +32,12 @@ description: 操作这台电脑上的桌面软件（Mac / Windows）：看软件
 5. Windows 上打字前先点一下要输入的文本框，让它拿到焦点，再 `type_text`。
 6. 要读长文本（聊天记录、文档正文）时，`get_app_state` 加 `text_limit: 1000` 或 `"max"`。
 
+## Mac 上的已知限制（当前随包版本 Open Computer Use 1.1.6）
+
+- 文本框、文本区这类输入控件：`set_value` 和按 `element_index` 点击会被拦，报「element N no longer has the identity the snapshot showed」（上游已知问题，修复待发布）。遇到就改用：按截图坐标 `click` 点进输入框，再 `type_text` 打字。按钮、菜单、列表行按编号点正常。
+- 软件不在前台时，`cmd+a` 这类组合键可能不生效；要全选替换时，先请用户把那个软件切到前台再做。
+- 报错里写「nothing was sent」就是什么都没做，可以放心换种方式重试。
+
 ## 必须先问用户的事
 
 发送消息、删除、付款、提交表单、上传文件、改系统设置这类对外可见或不可撤回的动作，先说清要做什么、等用户同意再点。不去看密码管理器和与任务无关的私密内容。
