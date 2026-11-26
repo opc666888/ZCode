@@ -1,5 +1,7 @@
 # 打 Claude 360 Code 安装包（Mac / Windows）
 
+> ⛔ 发版前必须先过 [RELEASE-NO-LEAK.md](RELEASE-NO-LEAK.md)（覆盖升级 + 泄露核对），不过不发。
+
 Claude 360 Code = 本仓库在 `ZCODE_C360_IDENTITY=1` 下打出的发行版（2026-11-21 起）。和原版 ZCode 的区别只在构建开关：
 
 | 项 | 做法 |

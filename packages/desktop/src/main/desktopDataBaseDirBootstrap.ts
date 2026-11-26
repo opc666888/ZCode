@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, win32 } from "node:path";
 import { setDataBaseDir } from "@zcode/services/node";
 import { ZCODE_C360 } from "@zcode/shared";
-import { app, dialog, shell } from "electron";
+import { app, dialog, net, shell } from "electron";
 
 export function resolveBootstrapSettingsFile(homePath: string = process.env.ZCODE_DATA_BASE_DIR?.trim() || homedir()): string {
   return join(homePath, ".zcode", "v2", "setting.json");
@@ -116,4 +116,124 @@ export async function ensureC360License(): Promise<boolean> {
       return false;
     }
   }
+}
+
+/**
+ * Claude 360 Code 升级提示（owner 2026-11-27「升级的肯定要做」）。
+ *
+ * C360 构建关掉了官方自动更新（开着会把应用换回官方 ZCode），老用户就不知道有新版。
+ * 这里改成：启动 15 秒后、之后每 6 小时，向我们自己的下载站读一个公开的版本号文件；
+ * 比当前版本新就弹一次窗「去下载」，打开下载页让用户自己下载覆盖安装。不自动下载、不自动安装。
+ *
+ * 防泄露铁律（docs/c360/RELEASE-NO-LEAK.md）：只请求 env.opentools.site（我们自己的域名，不是 Claude/Anthropic），
+ * 走 Electron net.fetch（Chromium 网络栈，跟系统代理 / 接管走同一条路），不带任何设备标识或凭据；
+ * 不改任何网络设置。请求失败一律静默，不影响使用。
+ */
+
+export const C360_LATEST_URL = "https://env.opentools.site/c360code/latest.json";
+export const C360_DOWNLOAD_URL = "https://env.opentools.site/download/";
+const FIRST_CHECK_DELAY_MS = 15_000;
+const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+export interface C360LatestInfo {
+  version: string;
+  notes?: string;
+}
+
+/** 只认 x.y.z 数字版本；格式不对返回 undefined（当作没有新版）。 */
+export function parseVersion(value: unknown): [number, number, number] | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value.trim());
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined;
+}
+
+export function isNewerVersion(latest: string, current: string): boolean {
+  const a = parseVersion(latest);
+  const b = parseVersion(current);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i]! !== b[i]!) return a[i]! > b[i]!;
+  }
+  return false;
+}
+
+export function parseLatestInfo(body: unknown): C360LatestInfo | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const record = body as Record<string, unknown>;
+  if (!parseVersion(record.version)) return undefined;
+  const notes = typeof record.notes === "string" ? record.notes.trim().slice(0, 600) : undefined;
+  return { version: String(record.version).trim(), ...(notes ? { notes } : {}) };
+}
+
+/** 测试用覆盖地址：只接受 https，或本机 127.0.0.1（测试电脑上起的临时文件服务）。 */
+export function resolveLatestUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const override = env.C360_UPDATE_LATEST_URL?.trim();
+  if (override && (override.startsWith("https://") || /^http:\/\/127\.0\.0\.1(:\d+)?\//.test(override))) return override;
+  return C360_LATEST_URL;
+}
+
+async function fetchLatest(url: string): Promise<C360LatestInfo | undefined> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await net.fetch(url, {
+      signal: controller.signal,
+      credentials: "omit",
+      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+    });
+    if (!response.ok) return undefined;
+    return parseLatestInfo(await response.json());
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface C360UpdateNoticeLogger {
+  info(message: string): void;
+}
+
+/** 启动升级检查；返回停止函数。同一个新版本本次运行只提醒一次，点「稍后」下次启动再提醒。 */
+export function startC360UpdateNotice(logger: C360UpdateNoticeLogger): () => void {
+  const url = resolveLatestUrl();
+  const prompted = new Set<string>();
+  let dialogOpen = false;
+
+  const check = async () => {
+    if (dialogOpen) return;
+    const latest = await fetchLatest(url);
+    const current = app.getVersion();
+    if (!latest || !isNewerVersion(latest.version, current) || prompted.has(latest.version)) return;
+    prompted.add(latest.version);
+    logger.info(`[c360-update] 发现新版本 ${latest.version}（当前 ${current}），提示用户`);
+    dialogOpen = true;
+    try {
+      const { response } = await dialog.showMessageBox({
+        type: "info",
+        title: "Claude 360 Code 有新版本",
+        message: `发现新版本 ${latest.version}（你现在用的是 ${current}）`,
+        detail:
+          (latest.notes ? `${latest.notes}\n\n` : "") +
+          "点「去下载」打开下载页，登录后下载新安装包，直接覆盖安装就行；你的项目和对话记录都会保留。",
+        buttons: ["去下载", "稍后提醒"],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (response === 0) void shell.openExternal(C360_DOWNLOAD_URL);
+    } finally {
+      dialogOpen = false;
+    }
+  };
+
+  const first = setTimeout(() => void check(), FIRST_CHECK_DELAY_MS);
+  const timer = setInterval(() => void check(), CHECK_INTERVAL_MS);
+  first.unref?.();
+  timer.unref?.();
+  return () => {
+    clearTimeout(first);
+    clearInterval(timer);
+  };
 }

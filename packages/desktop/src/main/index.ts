@@ -54,7 +54,7 @@ import {
 } from "electron";
 import { randomUUID } from "node:crypto";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
-import { ensureC360License } from "./desktopDataBaseDirBootstrap.js";
+import { ensureC360License, startC360UpdateNotice } from "./desktopDataBaseDirBootstrap.js";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -93,6 +93,7 @@ import {
   DEFAULT_LOCALE,
   toZhOrEnLocale,
   TEST_ZCODE_ENDPOINT_ORIGIN,
+  ZCODE_C360,
   ZCODE_VERSION,
   buildZCodeEndpointUrls,
   resolveWebRemoteControlRelayWsUrl,
@@ -2437,6 +2438,8 @@ app.whenReady().then(async () => {
       env: process.env,
     }),
   });
+  // Claude 360 Code 不接官方自动更新，改由我们自己的下载站提示新版本（只提示、不自动安装，见 desktopDataBaseDirBootstrap.ts 的 startC360UpdateNotice）
+  if (ZCODE_C360) startC360UpdateNotice(logger);
 
   if (process.platform === "darwin" || process.platform === "win32") {
     app.clearRecentDocuments();
