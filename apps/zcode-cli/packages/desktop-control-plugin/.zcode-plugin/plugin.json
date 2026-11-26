@@ -1,0 +1,19 @@
+{
+  "name": "desktop-control",
+  "version": "0.1.0",
+  "description": "Control desktop apps on this computer: read app UI, click, type, press keys, scroll and drag. Powered by Open Computer Use (MIT).",
+  "description_i18n": {
+    "en": "Control desktop apps on this computer: read app UI, click, type, press keys, scroll and drag. Powered by Open Computer Use (MIT).",
+    "zh-CN": "操作这台电脑上的软件：读界面、点击、打字、按键、滚动、拖拽。基于开源 Open Computer Use（MIT）。"
+  },
+  "author": { "name": "Claude 360" },
+  "license": "MIT",
+  "skills": "skills",
+  "mcpServers": {
+    "computer": {
+      "command": "node",
+      "args": ["${ZCODE_PLUGIN_ROOT}/scripts/launch.mjs", "mcp"],
+      "timeoutMs": 120000
+    }
+  }
+}

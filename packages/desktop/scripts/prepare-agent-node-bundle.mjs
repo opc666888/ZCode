@@ -24,6 +24,7 @@ import {
 } from "./sharp-package-assets.mjs";
 import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
 import { BUNDLED_NPM_VERSION, stageBundledNpm } from "./bundled-npm-assets.mjs";
+import { OPEN_COMPUTER_USE_VERSION, stageOpenComputerUse } from "./open-computer-use-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -302,6 +303,14 @@ const officialPluginPackages = [
     requiredRuntimePaths: [],
     stagedPath: "packages/design-plugin",
   },
+  {
+    // Claude 360 Code「电脑操作」：插件只带启动器 + 技能；Open Computer Use 原生程序在 stageOpenComputerUseRuntime 按目标平台放进 dist/ocu。
+    packageName: "@zcode/desktop-control-plugin",
+    relativePath: "apps/zcode-cli/packages/desktop-control-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: ["scripts/launch.mjs", "skills/desktop-control/SKILL.md", "THIRD_PARTY_NOTICES.md"],
+    stagedPath: "packages/desktop-control-plugin",
+  },
   // superpowers 已从内置插件下线，改走 UI 推荐区按需安装；这里不再 stage 它的资源。
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
@@ -319,6 +328,8 @@ const bundledSkillPack = {
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
+  // 随包第三方程序的许可声明（desktop-control 带 Open Computer Use，MIT 要求保留声明）。
+  "THIRD_PARTY_NOTICES.md",
   ".zcode-plugin",
   "README.md",
   // Electron 生产资源复制有独立白名单，遗漏 agents 会让首启 filesystem seed 永久缺少子代理。
@@ -483,6 +494,20 @@ async function stageBundledNpmRuntime() {
   console.log(`[prepare:agent-bundle] staged npm@${BUNDLED_NPM_VERSION} into ${stagedRoot}`);
 }
 
+// Claude 360 Code「电脑操作」插件的原生程序（Open Computer Use，固定版本 + sha512 校验，缓存同 npm）。
+async function stageOpenComputerUseRuntime() {
+  const executablePath = await stageOpenComputerUse({
+    cacheDir: resolve(repoRoot, "node_modules", ".cache", "zcode-open-computer-use"),
+    glmDir,
+    platformKey,
+  });
+  console.log(
+    executablePath
+      ? `[prepare:agent-bundle] staged open-computer-use@${OPEN_COMPUTER_USE_VERSION} into ${executablePath}`
+      : `[prepare:agent-bundle] open-computer-use not available for ${platformKey}, skip`,
+  );
+}
+
 function stageSharpForNodeReplPlugin() {
   if (!isSharpRequiredByComputerUse({ desktopPackageRoot: desktopRoot })) {
     console.log(
@@ -545,5 +570,6 @@ await stageBundle();
 stageOfficialPlugins();
 stageBundledSkillPack();
 await stageBundledNpmRuntime();
+await stageOpenComputerUseRuntime();
 stageKoffiForCuaPlugin();
 stageSharpForNodeReplPlugin();

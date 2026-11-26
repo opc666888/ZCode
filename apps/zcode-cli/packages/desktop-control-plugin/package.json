@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@zcode/desktop-control-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Claude 360 Code desktop control: Open Computer Use (MIT) stdio MCP server bundled per platform."
+}
