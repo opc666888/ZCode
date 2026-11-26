@@ -75,6 +75,24 @@ function dataUrlImage(attachment: ResolvedTurnAttachment): { mimeType: string; d
   return match ? { mimeType: match[1]!, data: match[2]! } : undefined;
 }
 
+/**
+ * 「完全访问」（yolo）且没开规划时，外部智能体的权限请求直接放行，与上游 PermissionService
+ * 对 yolo 的处理一致（mode.yolo：不弹确认）。修复原因：原先 ACP 会话的每个权限请求都无条件
+ * 交给确认窗，用户切了完全访问 Claude 仍不停弹窗（owner 11-27 实测）。
+ * 例外：ExitPlanMode 是「审阅规划」而非权限，仍交给用户。只选单次允许，不替用户写永久规则。
+ */
+export function fullAccessAutoAllow(
+  request: ExternalPermissionRequest,
+  config: { mode?: string; planEnabled?: boolean },
+): ExternalPermissionDecision | undefined {
+  if (config.mode !== "yolo" || config.planEnabled) return undefined;
+  if (request.toolName === "ExitPlanMode") return undefined;
+  const option =
+    request.options.find((item) => item.kind === "allow_once") ??
+    request.options.find((item) => item.kind === "allow_always");
+  return option ? { optionId: option.optionId } : undefined;
+}
+
 function mapPermissionResult(
   request: ExternalPermissionRequest,
   result: PermissionBrokerResult,
@@ -142,6 +160,8 @@ class ExternalTurnRun {
     // 先让已到达的 tool_call 落库，权限卡才能挂到对应工具行。
     await this.#chain;
     const { runtime, ctx } = this;
+    const autoAllowed = fullAccessAutoAllow(request, runtime.config);
+    if (autoAllowed) return autoAllowed;
     const requestId = `acp_perm_${crypto.randomUUID()}`;
     const toolCallId = request.toolCallId as ToolCallId;
     const hasAlways = request.options.some((option) => option.kind === "allow_always");
