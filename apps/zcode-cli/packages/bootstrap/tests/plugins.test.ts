@@ -67,6 +67,21 @@ it("computer-use 不上架（Claude 360 Code：开源版电脑控制是占位包
     false,
   );
 });
+it("desktop-control（电脑操作，随包 Open Computer Use）上架、默认关闭、seed 必带启动器与技能", () => {
+  const desktopControl = OFFICIAL_PLUGIN_DEFINITIONS.find(
+    (definition) => definition.name === "desktop-control",
+  );
+  expect(desktopControl).toBeDefined();
+  expect(desktopControl?.defaultEnabled ?? false).toBe(false);
+  expect(desktopControl?.listing?.displayName_i18n?.["zh-CN"]).toBe("电脑操作");
+  expect(desktopControl?.requiredSeedPaths).toEqual([
+    "scripts/launch.mjs",
+    "skills/desktop-control/SKILL.md",
+  ]);
+  expect(DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has("desktop-control@zcode-plugins-official")).toBe(
+    false,
+  );
+});
 it("design 默认关闭，等待用户安装或启用", () => {
   const design = OFFICIAL_PLUGIN_DEFINITIONS.find((definition) => definition.name === "design");
   expect(design).toBeDefined();
@@ -694,7 +709,7 @@ describe("ZCode plugins", () => {
             id: "zcode-plugins-official",
             isOfficial: true,
             name: "zcode-plugins-official",
-            pluginCount: 15, // computer-use 不上架
+            pluginCount: 16, // computer-use 不上架；desktop-control（电脑操作，Open Computer Use）上架
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -2641,7 +2656,7 @@ describe("ZCode plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "zcode-plugins-official"),
       ).toMatchObject({
-        pluginCount: 15, // computer-use 不上架
+        pluginCount: 16, // computer-use 不上架；desktop-control（电脑操作，Open Computer Use）上架
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",

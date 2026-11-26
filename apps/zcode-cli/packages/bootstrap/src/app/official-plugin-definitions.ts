@@ -34,6 +34,12 @@ export const OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME = "node-repl-host";
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_ID = `${OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
 export const OFFICIAL_CUA_PLUGIN_NAME = "computer-use";
 export const OFFICIAL_CUA_PLUGIN_ID = `${OFFICIAL_CUA_PLUGIN_NAME}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+/** Claude 360 Code「电脑操作」：随包 Open Computer Use 的 stdio MCP，替代占位的 computer-use。 */
+export const OFFICIAL_DESKTOP_CONTROL_PLUGIN_NAME = "desktop-control";
+export const OFFICIAL_DESKTOP_CONTROL_REQUIRED_SEED_PATHS = [
+  "scripts/launch.mjs",
+  "skills/desktop-control/SKILL.md",
+] as const;
 
 export interface OfficialPluginDefinition {
   /**
@@ -485,6 +491,36 @@ export const ALL_OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[
     // 这里的 version 追踪上游 zcode-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
     version: "0.6.5",
+  },
+  {
+    // Claude 360 Code「电脑操作」（owner 2026-11-26「肯定要重新上架」）：替代上面那个开源版占位的 computer-use。
+    // MCP 服务 = 随包的 Open Computer Use（MIT）原生程序，打包时按平台放进 dist/ocu（Mac 原样带官方签名公证的 .app，
+    // Windows 带 exe）；scripts/launch.mjs 找到它并以 stdio 方式启动。不走 node_repl / CUA Helper / 权限服务那一套，
+    // 所以设置页「电脑控制」分区与输入框入口仍按 ZCODE_C360 隐藏，入口在插件市场。
+    // 带 MCP 与原生程序，按「defaultEnabled 仅限内容型插件」约定默认关闭，用户在插件市场里开启。
+    name: OFFICIAL_DESKTOP_CONTROL_PLUGIN_NAME,
+    listing: {
+      author: { name: "Claude 360" },
+      category: "productivity",
+      displayName: "Desktop Control",
+      displayName_i18n: { "zh-CN": "电脑操作" },
+      description_i18n: {
+        "zh-CN": "让 Claude 操作这台电脑上的软件：看界面、点击、打字、按键、滚动、拖拽。支持 Mac（macOS 14 及以上）和 Windows。",
+      },
+      examplePrompts: ["Open TextEdit and type a note for me", "Read what is on the current Finder window"],
+      examplePrompts_i18n: {
+        "zh-CN": ["打开备忘录帮我写一条提醒", "看看我现在打开的这个软件界面上写了什么"],
+      },
+    },
+    rootCandidates: [
+      "packages/desktop-control-plugin",
+      "../desktop-control-plugin",
+      "../../desktop-control-plugin",
+      "../../../desktop-control-plugin",
+    ],
+    // dist/ocu 是打包脚本放进来的原生程序（不在源码里）；dist 本就在 seed 顶层白名单内，权限位随 seed 保留。
+    requiredSeedPaths: OFFICIAL_DESKTOP_CONTROL_REQUIRED_SEED_PATHS,
+    version: "0.1.0",
   },
   {
     // ZCode Sites（技术方案 4）：Skill 指导 Agent 把项目改造并打包成 runner 可直接运行的产物包，

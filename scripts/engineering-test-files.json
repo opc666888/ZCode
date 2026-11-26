@@ -5,6 +5,7 @@
   "packages/desktop/test/build-native-search-tools.test.ts",
   "packages/desktop/test/bundleMirrorFallback.test.ts",
   "packages/desktop/test/bundledNpmAssets.test.ts",
+  "packages/desktop/test/openComputerUseAssets.test.ts",
   "packages/desktop/test/cdnPreloadScript.test.ts",
   "packages/desktop/test/chromedriverPreflight.test.ts",
   "packages/desktop/test/clientScenesMockServer.test.ts",
